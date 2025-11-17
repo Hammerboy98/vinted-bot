@@ -14,7 +14,7 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 
 // ============================================
-// AGGIUNGI QUI IL LOG PER VEDERE COSA VIENE LETTO
+// LOG PER VEDERE COSA VIENE LETTO
 // ============================================
 console.log("Token letto da .env:", process.env.TELEGRAM_TOKEN);
 console.log("Chat ID letto da .env:", CHAT_ID);
@@ -62,7 +62,7 @@ async function checkVinted() {
           console.log("✅ Notificato:", title);
         }
       });
-      await delay(3000); // Attendi 3 secondi tra le richieste
+      await delay(3000); // Ritardo di 3 secondi tra le ricerche per risparmiare memoria
     }
   } catch (error) {
     console.error("❌ Errore nel controllo Vinted:", error.message);
@@ -77,7 +77,7 @@ setInterval(() => {
 
 // Controlla ogni 15 minuti
 setInterval(checkVinted, 15 * 60 * 1000);
-checkVinted(); // primo controllo all'avvio
+// RIGA RIMOSSA: checkVinted(); // Questa riga è stata rimossa per prevenire il crash iniziale di memoria
 
 const app = express();
 // Render usa la variabile PORT per indicare su quale porta ascoltare
