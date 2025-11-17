@@ -9,15 +9,27 @@ require("dotenv").config();
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 
+// ============================================
+// AGGIUNGI QUI IL LOG PER VEDERE COSA VIENE LETTO
+// ============================================
+console.log("Token letto da .env:", process.env.TELEGRAM_TOKEN);
+console.log("Chat ID letto da .env:", CHAT_ID);
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
+
+try {
+  bot.sendMessage(CHAT_ID, "🤖 Il Vinted Notifier è attivo e vivo!");
+  console.log("✅ Messaggio di test inviato su Telegram.");
+} catch (e) {
+  console.error("❌ ERRORE CRITICO TEST TELEGRAM:", e.message);
+}
+
 const KEYWORDS = [
-  "pokemon",
-  "pokemon goldstar",
-  "fossil",
-  "set base",
+  "Pokemon Crystal",
+  "Pokemon Goldstar ",
+  "Pokemon holo Mint ",
+  "Lotto Pokemon vintage",
   "charizard",
-  "blastoise",
-  "venusaur",
+  "Scarpe Nike",
 ];
 let notifiedLinks = new Set();
 
