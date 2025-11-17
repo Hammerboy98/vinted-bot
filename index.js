@@ -27,11 +27,7 @@ try {
   console.error("❌ ERRORE CRITICO TEST TELEGRAM:", e.message);
 }
 
-const KEYWORDS = [
-  "Pokemon Crystal",
-  "Pokemon Goldstar ",
-  "Lotto Pokemon vintage",
-];
+const KEYWORDS = ["Pokemon Crystal", "Pokemon Goldstar "];
 let notifiedLinks = new Set();
 
 async function checkVinted() {
