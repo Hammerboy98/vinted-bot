@@ -30,7 +30,6 @@ try {
 const KEYWORDS = [
   "Pokemon Crystal",
   "Pokemon Goldstar ",
-  "Pokemon holo Mint ",
   "Lotto Pokemon vintage",
 ];
 let notifiedLinks = new Set();
