@@ -2,6 +2,9 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const TelegramBot = require("node-telegram-bot-api");
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 // PASSO CHIAVE: Carica le variabili dal file .env
 require("dotenv").config();
 
@@ -60,6 +63,7 @@ async function checkVinted() {
           console.log("✅ Notificato:", title);
         }
       });
+      await delay(1000);
     }
   } catch (error) {
     console.error("❌ Errore nel controllo Vinted:", error.message);
