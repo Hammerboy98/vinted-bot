@@ -62,7 +62,7 @@ async function checkVinted() {
           console.log("✅ Notificato:", title);
         }
       });
-      await delay(3000); // Ritardo di 3 secondi tra le ricerche per risparmiare memoria
+      await delay(5000); // Ritardo di 5 secondi tra le ricerche
     }
   } catch (error) {
     console.error("❌ Errore nel controllo Vinted:", error.message);
@@ -77,7 +77,10 @@ setInterval(() => {
 
 // Controlla ogni 15 minuti
 setInterval(checkVinted, 15 * 60 * 1000);
-// RIGA RIMOSSA: checkVinted(); // Questa riga è stata rimossa per prevenire il crash iniziale di memoria
+
+// === NUOVA ISTRUZIONE PER IL PRIMO CONTROLLO CON RITARDO ===
+// Avvia il primo controllo dopo 60 secondi (1 minuto) per evitare il crash di memoria all'avvio.
+setTimeout(checkVinted, 60 * 1000);
 
 const app = express();
 // Render usa la variabile PORT per indicare su quale porta ascoltare
