@@ -1,0 +1,9 @@
+# Cartella delle dipendenze di Node.js
+node_modules/
+
+# File di configurazione sensibile (credenziali Telegram)
+.env
+
+# File di sistema e cache
+npm-debug.log
+.DS_Store
