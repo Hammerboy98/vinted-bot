@@ -32,8 +32,6 @@ const KEYWORDS = [
   "Pokemon Goldstar ",
   "Pokemon holo Mint ",
   "Lotto Pokemon vintage",
-  "charizard",
-  "Scarpe Nike",
 ];
 let notifiedLinks = new Set();
 
@@ -64,7 +62,7 @@ async function checkVinted() {
           console.log("✅ Notificato:", title);
         }
       });
-      await delay(1000);
+      await delay(3000); // Attendi 3 secondi tra le richieste
     }
   } catch (error) {
     console.error("❌ Errore nel controllo Vinted:", error.message);
