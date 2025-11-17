@@ -1,6 +1,7 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const TelegramBot = require("node-telegram-bot-api");
+const express = require("express");
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -79,3 +80,17 @@ setInterval(() => {
 // Controlla ogni 15 minuti
 setInterval(checkVinted, 15 * 60 * 1000);
 checkVinted(); // primo controllo all'avvio
+
+const app = express();
+// Render usa la variabile PORT per indicare su quale porta ascoltare
+const port = process.env.PORT || 3000;
+
+// Endpoint di stato per soddisfare Render
+app.get("/", (req, res) => {
+  res.send("Vinted Notifier is running in the background.");
+});
+
+// Avvia il server
+app.listen(port, () => {
+  console.log(`Web server listening on port ${port}`);
+});
