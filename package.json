@@ -8,10 +8,11 @@
   },
   "dependencies": {
     "array.prototype.findindex": "^2.2.4",
-    "axios": "^1.12.2",
+    "axios": "^1.13.2",
     "bl": "^6.1.4",
     "dotenv": "^17.2.3",
-    "express": "^4.19.2",
+    "express": "^4.21.2",
+    "file-type": "^21.1.1",
     "node-telegram-bot-api": "^0.66.0",
     "proxy-from-env": "^1.1.0"
   },
