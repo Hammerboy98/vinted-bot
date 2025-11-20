@@ -7,6 +7,7 @@ require("dotenv").config();
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 const PORT = process.env.PORT || 3000;
+const WEBHOOK_URL = process.env.WEBHOOK_URL;
 
 // === CARICAMENTO KEYWORDS ===
 let KEYWORDS = [];
@@ -15,8 +16,9 @@ if (process.env.KEYWORDS) {
 }
 console.log("🔑 Keywords iniziali:", KEYWORDS);
 
-// === TELEGRAM BOT ===
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+// === TELEGRAM BOT CON WEBHOOK ===
+const bot = new TelegramBot(TELEGRAM_TOKEN);
+bot.setWebHook(`${WEBHOOK_URL}/bot${TELEGRAM_TOKEN}`);
 
 // Messaggio di conferma avvio + keywords
 const keywordMessage =
@@ -159,7 +161,17 @@ bot.onText(/\/remove (.+)/, (msg, match) => {
   });
 });
 
-// === SERVER PER MONITORING ===
+// === SERVER EXPRESS PER WEBHOOK E MONITORING ===
 const app = express();
+
+// Endpoint Telegram Webhook
+app.use(express.json());
+app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
+
+// Endpoint di monitoraggio
 app.get("/", (_, res) => res.send("PokéBot attivo con comandi dinamici."));
+
 app.listen(PORT, () => console.log(`Server su porta ${PORT}`));
