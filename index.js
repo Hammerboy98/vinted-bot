@@ -1,6 +1,7 @@
 const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
+const fs = require("fs");
 require("dotenv").config();
 
 // === CONFIG ===
@@ -8,34 +9,30 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 const PORT = process.env.PORT || 3000;
 
-// === CARICAMENTO KEYWORDS ===
+// === LETTURA KEYWORDS DA FILE JSON ===
 let KEYWORDS = [];
-if (process.env.KEYWORDS) {
-  KEYWORDS = process.env.KEYWORDS.split(",").map((k) => k.trim().toLowerCase());
+try {
+  const data = fs.readFileSync("keywords.json", "utf8");
+  const json = JSON.parse(data);
+  KEYWORDS = json.keywords || [];
+} catch (err) {
+  console.log(
+    "⚠️ Nessun file keywords.json trovato o errore di lettura, uso array vuoto."
+  );
 }
+
 console.log("🔑 Keywords iniziali:", KEYWORDS);
 
-// === TELEGRAM BOT (POLLING) ===
+// === TELEGRAM BOT ===
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
-// Messaggio di conferma avvio + keywords
+// Messaggio di avvio con keywords
 const keywordMessage =
   KEYWORDS.length > 0
     ? `🟢 PokéBot attivo!\n🔑 Keyword attuali:\n• ${KEYWORDS.join("\n• ")}`
     : "🟢 PokéBot attivo!\n⚠️ Nessuna keyword impostata.";
 
-bot
-  .sendMessage(CHAT_ID, keywordMessage)
-  .then(() => {
-    // ✅ Messaggio di test automatico
-    bot.sendMessage(
-      CHAT_ID,
-      "⚡ Messaggio di test automatico: il bot è operativo!"
-    );
-  })
-  .catch((err) =>
-    console.error("❌ Errore invio messaggio di test:", err.message)
-  );
+bot.sendMessage(CHAT_ID, keywordMessage);
 
 // === SET PER EVITARE DUPLICATI ===
 let notifiedLinks = new Set();
@@ -74,6 +71,14 @@ async function checkVinted() {
 
   try {
     for (let keyword of KEYWORDS) {
+      await bot.sendMessage(
+        CHAT_ID,
+        `🔎 Cerco articoli per la keyword: *${keyword}*`,
+        {
+          parse_mode: "Markdown",
+        }
+      );
+
       const items = await searchVinted(keyword);
 
       for (const item of items) {
@@ -127,6 +132,7 @@ bot.onText(/\/add (.+)/, (msg, match) => {
   const newKeyword = match[1].toLowerCase().trim();
   if (!KEYWORDS.includes(newKeyword)) {
     KEYWORDS.push(newKeyword);
+    fs.writeFileSync("keywords.json", JSON.stringify(KEYWORDS, null, 2));
     bot.sendMessage(msg.chat.id, `💾 Keyword aggiunta: *${newKeyword}*`, {
       parse_mode: "Markdown",
     });
@@ -165,6 +171,7 @@ bot.onText(/\/remove (.+)/, (msg, match) => {
   }
 
   KEYWORDS = KEYWORDS.filter((k) => k !== keyword);
+  fs.writeFileSync("keywords.json", JSON.stringify(KEYWORDS, null, 2));
   bot.sendMessage(msg.chat.id, `🗑️ Keyword rimossa: *${keyword}*`, {
     parse_mode: "Markdown",
   });
