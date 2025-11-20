@@ -53,13 +53,29 @@ async function searchVinted(keyword) {
     order: "newest_first",
   };
 
-  const res = await axios.get(url, {
-    params,
-    timeout: 7000,
-    headers: { "User-Agent": "Mozilla/5.0" },
-  });
-
-  return res.data.items || [];
+  try {
+    const res = await axios.get(url, {
+      params,
+      timeout: 7000,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "application/json",
+        "Accept-Language": "it-IT,it;q=0.9",
+        Referer: "https://www.vinted.it/",
+      },
+    });
+    return res.data.items || [];
+  } catch (err) {
+    if (err.response) {
+      console.error(
+        `❌ Errore ${err.response.status} durante la ricerca "${keyword}"`
+      );
+    } else {
+      console.error("❌ Errore:", err.message);
+    }
+    return [];
+  }
 }
 
 // === FUNZIONE PRINCIPALE ===
@@ -69,17 +85,16 @@ async function checkVinted() {
 
   console.log("🔍 Controllo Vinted…");
 
-  try {
-    for (let keyword of KEYWORDS) {
+  for (let keyword of KEYWORDS) {
+    try {
       await bot.sendMessage(
         CHAT_ID,
         `🔎 Cerco articoli per la keyword: *${keyword}*`,
-        {
-          parse_mode: "Markdown",
-        }
+        { parse_mode: "Markdown" }
       );
 
       const items = await searchVinted(keyword);
+      console.log(`✅ Trovati ${items.length} articoli per "${keyword}"`);
 
       for (const item of items) {
         const link = `https://www.vinted.it/items/${item.id}`;
@@ -100,17 +115,17 @@ async function checkVinted() {
           { parse_mode: "Markdown" }
         );
 
-        if (photo) bot.sendPhoto(CHAT_ID, photo);
+        if (photo) await bot.sendPhoto(CHAT_ID, photo);
         console.log("📨 Notificato:", item.title);
       }
 
       await delay(2500);
+    } catch (err) {
+      console.error(`❌ Errore nella keyword "${keyword}":`, err.message);
     }
-  } catch (err) {
-    console.error("❌ Errore:", err.message);
-  } finally {
-    isRunning = false;
   }
+
+  isRunning = false;
 }
 
 // === PULIZIA DUPLICATI OGNI 8 ORE ===
@@ -132,7 +147,10 @@ bot.onText(/\/add (.+)/, (msg, match) => {
   const newKeyword = match[1].toLowerCase().trim();
   if (!KEYWORDS.includes(newKeyword)) {
     KEYWORDS.push(newKeyword);
-    fs.writeFileSync("keywords.json", JSON.stringify(KEYWORDS, null, 2));
+    fs.writeFileSync(
+      "keywords.json",
+      JSON.stringify({ keywords: KEYWORDS }, null, 2)
+    );
     bot.sendMessage(msg.chat.id, `💾 Keyword aggiunta: *${newKeyword}*`, {
       parse_mode: "Markdown",
     });
@@ -171,7 +189,10 @@ bot.onText(/\/remove (.+)/, (msg, match) => {
   }
 
   KEYWORDS = KEYWORDS.filter((k) => k !== keyword);
-  fs.writeFileSync("keywords.json", JSON.stringify(KEYWORDS, null, 2));
+  fs.writeFileSync(
+    "keywords.json",
+    JSON.stringify({ keywords: KEYWORDS }, null, 2)
+  );
   bot.sendMessage(msg.chat.id, `🗑️ Keyword rimossa: *${keyword}*`, {
     parse_mode: "Markdown",
   });
