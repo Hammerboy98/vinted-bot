@@ -6,13 +6,7 @@ require("dotenv").config();
 // === CONFIG ===
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
-const PORT = process.env.PORT || 10000;
-const BASE_URL = process.env.BASE_URL; // Es. https://vinted-bot-1-ifmo.onrender.com
-
-if (!BASE_URL) {
-  console.error("❌ Devi impostare BASE_URL su Render!");
-  process.exit(1);
-}
+const PORT = process.env.PORT || 3000;
 
 // === CARICAMENTO KEYWORDS ===
 let KEYWORDS = [];
@@ -21,12 +15,16 @@ if (process.env.KEYWORDS) {
 }
 console.log("🔑 Keywords iniziali:", KEYWORDS);
 
-// === TELEGRAM BOT (WEBHOOK) ===
-const bot = new TelegramBot(TELEGRAM_TOKEN);
-bot.setWebHook(`${BASE_URL}/bot${TELEGRAM_TOKEN}`);
+// === TELEGRAM BOT ===
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
-// Messaggio di test
-bot.sendMessage(CHAT_ID, "🟢 PokéBot attivo con webhook!");
+// Messaggio di conferma avvio + keywords
+const keywordMessage =
+  KEYWORDS.length > 0
+    ? `🟢 PokéBot attivo!\n🔑 Keyword attuali:\n• ${KEYWORDS.join("\n• ")}`
+    : "🟢 PokéBot attivo!\n⚠️ Nessuna keyword impostata.";
+
+bot.sendMessage(CHAT_ID, keywordMessage);
 
 // === SET PER EVITARE DUPLICATI ===
 let notifiedLinks = new Set();
@@ -113,6 +111,7 @@ setTimeout(checkVinted, 10 * 1000);
 // 🔧 COMANDI TELEGRAM DINAMICI
 // =========================================================
 
+// ➕ /add keyword
 bot.onText(/\/add (.+)/, (msg, match) => {
   const newKeyword = match[1].toLowerCase().trim();
   if (!KEYWORDS.includes(newKeyword)) {
@@ -129,6 +128,7 @@ bot.onText(/\/add (.+)/, (msg, match) => {
   }
 });
 
+// 📜 /list → mostra tutte le keyword
 bot.onText(/\/list/, (msg) => {
   if (KEYWORDS.length === 0) {
     bot.sendMessage(msg.chat.id, "📭 Nessuna keyword salvata.");
@@ -141,6 +141,7 @@ bot.onText(/\/list/, (msg) => {
   });
 });
 
+// ❌ /remove keyword
 bot.onText(/\/remove (.+)/, (msg, match) => {
   const keyword = match[1].toLowerCase().trim();
 
@@ -158,15 +159,7 @@ bot.onText(/\/remove (.+)/, (msg, match) => {
   });
 });
 
-// === SERVER PER WEBHOOK / MONITORING ===
+// === SERVER PER MONITORING ===
 const app = express();
-app.use(express.json());
-
-app.get("/", (_, res) => res.send("PokéBot attivo con webhook."));
-
-app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
-
+app.get("/", (_, res) => res.send("PokéBot attivo con comandi dinamici."));
 app.listen(PORT, () => console.log(`Server su porta ${PORT}`));
