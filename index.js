@@ -1,4 +1,3 @@
-// index.js
 const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
@@ -9,7 +8,6 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 
 // === CARICAMENTO KEYWORDS ===
-// Da variabile ambiente (Render) o default a vuoto
 let KEYWORDS = [];
 if (process.env.KEYWORDS) {
   KEYWORDS = process.env.KEYWORDS.split(",").map((k) => k.trim().toLowerCase());
@@ -19,11 +17,18 @@ console.log("🔑 Keywords iniziali:", KEYWORDS);
 
 // === TELEGRAM BOT ===
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-bot.sendMessage(CHAT_ID, "🟡 PokéBot attivo con comandi dinamici!");
+
+// Messaggio di test all’avvio
+bot.sendMessage(
+  CHAT_ID,
+  "🟢 PokéBot avviato correttamente! Test invio Telegram funzionante."
+);
 
 // === SET PER EVITARE DUPLICATI ===
 let notifiedLinks = new Set();
 let isRunning = false;
+
+console.log("🔗 Link già notificati:", Array.from(notifiedLinks));
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -58,17 +63,29 @@ async function checkVinted() {
 
   try {
     for (let keyword of KEYWORDS) {
+      console.log(`🔹 Controllo keyword: "${keyword}"`);
       const items = await searchVinted(keyword);
+      console.log(`📦 Trovati ${items.length} items per "${keyword}"`);
+
+      let foundAny = false;
 
       for (const item of items) {
         const link = `https://www.vinted.it/items/${item.id}`;
         const title = item.title.toLowerCase();
         const desc = (item.description || "").toLowerCase();
 
-        if (!title.includes(keyword) && !desc.includes(keyword)) continue;
-        if (notifiedLinks.has(link)) continue;
+        if (!title.includes(keyword) && !desc.includes(keyword)) {
+          console.log(`❌ Item filtrato (non contiene keyword): ${item.title}`);
+          continue;
+        }
+
+        if (notifiedLinks.has(link)) {
+          console.log(`⚠️ Item già notificato: ${item.title}`);
+          continue;
+        }
 
         notifiedLinks.add(link);
+        foundAny = true;
 
         const price = item.price;
         const photo = item.photo?.url;
@@ -79,8 +96,15 @@ async function checkVinted() {
           { parse_mode: "Markdown" }
         );
 
-        if (photo) bot.sendPhoto(CHAT_ID, photo);
+        if (photo) {
+          await bot.sendPhoto(CHAT_ID, photo);
+        }
+
         console.log("📨 Notificato:", item.title);
+      }
+
+      if (!foundAny) {
+        console.log(`ℹ️ Nessun item rilevante trovato per "${keyword}"`);
       }
 
       await delay(2500);
@@ -106,7 +130,6 @@ setTimeout(checkVinted, 10 * 1000);
 // 🔧 COMANDI TELEGRAM DINAMICI
 // =========================================================
 
-// ➕ /add keyword
 bot.onText(/\/add (.+)/, (msg, match) => {
   const newKeyword = match[1].toLowerCase().trim();
   if (!KEYWORDS.includes(newKeyword)) {
@@ -123,7 +146,6 @@ bot.onText(/\/add (.+)/, (msg, match) => {
   }
 });
 
-// 📜 /list → mostra tutte le keyword
 bot.onText(/\/list/, (msg) => {
   if (KEYWORDS.length === 0) {
     bot.sendMessage(msg.chat.id, "📭 Nessuna keyword salvata.");
@@ -136,7 +158,6 @@ bot.onText(/\/list/, (msg) => {
   });
 });
 
-// ❌ /remove keyword
 bot.onText(/\/remove (.+)/, (msg, match) => {
   const keyword = match[1].toLowerCase().trim();
 
