@@ -6,29 +6,31 @@ require("dotenv").config();
 // === CONFIG ===
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
+const PORT = process.env.PORT || 10000;
+const BASE_URL = process.env.BASE_URL; // Es. https://vinted-bot-1-ifmo.onrender.com
+
+if (!BASE_URL) {
+  console.error("❌ Devi impostare BASE_URL su Render!");
+  process.exit(1);
+}
 
 // === CARICAMENTO KEYWORDS ===
 let KEYWORDS = [];
 if (process.env.KEYWORDS) {
   KEYWORDS = process.env.KEYWORDS.split(",").map((k) => k.trim().toLowerCase());
 }
-
 console.log("🔑 Keywords iniziali:", KEYWORDS);
 
-// === TELEGRAM BOT ===
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+// === TELEGRAM BOT (WEBHOOK) ===
+const bot = new TelegramBot(TELEGRAM_TOKEN);
+bot.setWebHook(`${BASE_URL}/bot${TELEGRAM_TOKEN}`);
 
-// Messaggio di test all’avvio
-bot.sendMessage(
-  CHAT_ID,
-  "🟢 PokéBot avviato correttamente! Test invio Telegram funzionante."
-);
+// Messaggio di test
+bot.sendMessage(CHAT_ID, "🟢 PokéBot attivo con webhook!");
 
 // === SET PER EVITARE DUPLICATI ===
 let notifiedLinks = new Set();
 let isRunning = false;
-
-console.log("🔗 Link già notificati:", Array.from(notifiedLinks));
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -63,29 +65,17 @@ async function checkVinted() {
 
   try {
     for (let keyword of KEYWORDS) {
-      console.log(`🔹 Controllo keyword: "${keyword}"`);
       const items = await searchVinted(keyword);
-      console.log(`📦 Trovati ${items.length} items per "${keyword}"`);
-
-      let foundAny = false;
 
       for (const item of items) {
         const link = `https://www.vinted.it/items/${item.id}`;
         const title = item.title.toLowerCase();
         const desc = (item.description || "").toLowerCase();
 
-        if (!title.includes(keyword) && !desc.includes(keyword)) {
-          console.log(`❌ Item filtrato (non contiene keyword): ${item.title}`);
-          continue;
-        }
-
-        if (notifiedLinks.has(link)) {
-          console.log(`⚠️ Item già notificato: ${item.title}`);
-          continue;
-        }
+        if (!title.includes(keyword) && !desc.includes(keyword)) continue;
+        if (notifiedLinks.has(link)) continue;
 
         notifiedLinks.add(link);
-        foundAny = true;
 
         const price = item.price;
         const photo = item.photo?.url;
@@ -96,15 +86,8 @@ async function checkVinted() {
           { parse_mode: "Markdown" }
         );
 
-        if (photo) {
-          await bot.sendPhoto(CHAT_ID, photo);
-        }
-
+        if (photo) bot.sendPhoto(CHAT_ID, photo);
         console.log("📨 Notificato:", item.title);
-      }
-
-      if (!foundAny) {
-        console.log(`ℹ️ Nessun item rilevante trovato per "${keyword}"`);
       }
 
       await delay(2500);
@@ -175,8 +158,15 @@ bot.onText(/\/remove (.+)/, (msg, match) => {
   });
 });
 
-// === SERVER PER MONITORING ===
+// === SERVER PER WEBHOOK / MONITORING ===
 const app = express();
-const port = process.env.PORT || 3000;
-app.get("/", (_, res) => res.send("PokéBot attivo con comandi dinamici."));
-app.listen(port, () => console.log(`Server su porta ${port}`));
+app.use(express.json());
+
+app.get("/", (_, res) => res.send("PokéBot attivo con webhook."));
+
+app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
+
+app.listen(PORT, () => console.log(`Server su porta ${PORT}`));
