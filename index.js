@@ -24,11 +24,19 @@ try {
 console.log("🔑 Keywords iniziali:", KEYWORDS);
 
 // === TELEGRAM BOT ===
-// Pulizia webhook precedente prima di usare polling
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
-bot.deleteWebHook().finally(() => {
-  bot.startPolling();
-});
+
+// Elimina webhook esistenti e avvia polling
+bot
+  .deleteWebHook()
+  .then(() => {
+    console.log("✅ Webhook Telegram cancellato, avvio polling...");
+    bot.startPolling();
+  })
+  .catch((err) => {
+    console.error("❌ Errore cancellando webhook:", err.message);
+    bot.startPolling(); // proviamo comunque a partire
+  });
 
 // Messaggio di avvio con keywords
 const keywordMessage =
@@ -60,22 +68,21 @@ async function searchVinted(keyword) {
   try {
     const res = await axios.get(url, {
       params,
-      timeout: 10000,
+      timeout: 7000,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
-        Accept: "application/json",
-        "Accept-Language": "it-IT,it;q=0.9",
-        Referer: "https://www.vinted.it/",
-        "X-Requested-With": "XMLHttpRequest",
       },
     });
-
     return res.data.items || [];
   } catch (err) {
-    console.error(
-      `❌ Errore ${err.response?.status || ""} durante la ricerca "${keyword}"`
-    );
+    if (err.response) {
+      console.error(
+        `❌ Errore ${err.response.status} durante la ricerca "${keyword}"`
+      );
+    } else {
+      console.error(`❌ Errore durante la ricerca "${keyword}":`, err.message);
+    }
     return [];
   }
 }
@@ -88,50 +95,42 @@ async function checkVinted() {
   console.log("🔍 Controllo Vinted…");
 
   for (let keyword of KEYWORDS) {
-    try {
+    await bot.sendMessage(
+      CHAT_ID,
+      `🔎 Cerco articoli per la keyword: *${keyword}*`,
+      { parse_mode: "Markdown" }
+    );
+
+    const items = await searchVinted(keyword);
+
+    if (items.length === 0) {
+      console.log(`✅ Trovati 0 articoli per "${keyword}"`);
+    }
+
+    for (const item of items) {
+      const link = `https://www.vinted.it/items/${item.id}`;
+      const title = item.title.toLowerCase();
+      const desc = (item.description || "").toLowerCase();
+
+      if (!title.includes(keyword) && !desc.includes(keyword)) continue;
+      if (notifiedLinks.has(link)) continue;
+
+      notifiedLinks.add(link);
+
+      const price = item.price;
+      const photo = item.photo?.url;
+
       await bot.sendMessage(
         CHAT_ID,
-        `🔎 Cerco articoli per la keyword: *${keyword}*`,
+        `✨ *Nuova carta trovata!*\n📛 *${item.title}*\n💶 Prezzo: ${price}€\n🔗 ${link}`,
         { parse_mode: "Markdown" }
       );
 
-      const items = await searchVinted(keyword);
-
-      if (items.length === 0) {
-        console.log(`✅ Trovati 0 articoli per "${keyword}"`);
-      }
-
-      for (const item of items) {
-        const link = `https://www.vinted.it/items/${item.id}`;
-        const title = item.title.toLowerCase();
-        const desc = (item.description || "").toLowerCase();
-
-        if (!title.includes(keyword) && !desc.includes(keyword)) continue;
-        if (notifiedLinks.has(link)) continue;
-
-        notifiedLinks.add(link);
-
-        const price = item.price;
-        const photo = item.photo?.url;
-
-        await bot.sendMessage(
-          CHAT_ID,
-          `✨ *Nuova carta trovata!*\n📛 *${item.title}*\n💶 Prezzo: ${price}€\n🔗 ${link}`,
-          { parse_mode: "Markdown" }
-        );
-
-        if (photo) await bot.sendPhoto(CHAT_ID, photo);
-        console.log("📨 Notificato:", item.title);
-      }
-
-      // Delay tra keyword per ridurre rischio blocco
-      await delay(5000);
-    } catch (err) {
-      console.error(
-        `❌ Errore durante il controllo della keyword "${keyword}":`,
-        err.message
-      );
+      if (photo) bot.sendPhoto(CHAT_ID, photo);
+      console.log("📨 Notificato:", item.title);
     }
+
+    await delay(2500);
   }
 
   isRunning = false;
