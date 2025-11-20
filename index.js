@@ -24,19 +24,27 @@ try {
 console.log("🔑 Keywords iniziali:", KEYWORDS);
 
 // === TELEGRAM BOT ===
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
+// === TELEGRAM BOT ===
+const bot = new TelegramBot(TELEGRAM_TOKEN);
 
-// Elimina webhook esistenti e avvia polling
-bot
-  .deleteWebHook()
-  .then(() => {
+// Funzione per forzare polling senza 409
+async function startBotPolling() {
+  try {
+    // 1️⃣ Cancella webhook se presente
+    await bot.setWebHook("");
     console.log("✅ Webhook Telegram cancellato, avvio polling...");
+
+    // 2️⃣ Aspetta 2 secondi prima di iniziare il polling
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // 3️⃣ Avvia il polling
     bot.startPolling();
-  })
-  .catch((err) => {
-    console.error("❌ Errore cancellando webhook:", err.message);
-    bot.startPolling(); // proviamo comunque a partire
-  });
+  } catch (err) {
+    console.error("❌ Errore avvio polling:", err.message);
+  }
+}
+
+startBotPolling();
 
 // Messaggio di avvio con keywords
 const keywordMessage =
