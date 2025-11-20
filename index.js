@@ -23,18 +23,20 @@ try {
 
 console.log("🔑 Keywords iniziali:", KEYWORDS);
 
-// === TELEGRAM BOT (polling) ===
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+// === TELEGRAM BOT ===
+// Pulizia webhook precedente prima di usare polling
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
+bot.deleteWebHook().finally(() => {
+  bot.startPolling();
+});
 
-// Messaggio di test + keywords all'avvio
-const startMessage =
+// Messaggio di avvio con keywords
+const keywordMessage =
   KEYWORDS.length > 0
-    ? `🟢 PokéBot attivo!\n🔑 Sto monitorando le seguenti keywords:\n• ${KEYWORDS.join(
-        "\n• "
-      )}`
+    ? `🟢 PokéBot attivo!\n🔑 Keyword attuali:\n• ${KEYWORDS.join("\n• ")}`
     : "🟢 PokéBot attivo!\n⚠️ Nessuna keyword impostata.";
 
-bot.sendMessage(CHAT_ID, startMessage);
+bot.sendMessage(CHAT_ID, keywordMessage);
 
 // === SET PER EVITARE DUPLICATI ===
 let notifiedLinks = new Set();
@@ -44,7 +46,7 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// === FUNZIONE PER CERCARE SU VINTED ===
+// === API VINTED ===
 async function searchVinted(keyword) {
   const url = "https://www.vinted.it/api/v2/catalog/items";
   const params = {
@@ -63,6 +65,9 @@ async function searchVinted(keyword) {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
         Accept: "application/json",
+        "Accept-Language": "it-IT,it;q=0.9",
+        Referer: "https://www.vinted.it/",
+        "X-Requested-With": "XMLHttpRequest",
       },
     });
 
@@ -83,41 +88,50 @@ async function checkVinted() {
   console.log("🔍 Controllo Vinted…");
 
   for (let keyword of KEYWORDS) {
-    await bot.sendMessage(
-      CHAT_ID,
-      `🔎 Sto cercando articoli per: *${keyword}*`,
-      {
-        parse_mode: "Markdown",
-      }
-    );
-
-    const items = await searchVinted(keyword);
-    console.log(`✅ Trovati ${items.length} articoli per "${keyword}"`);
-
-    for (const item of items) {
-      const link = `https://www.vinted.it/items/${item.id}`;
-      const title = item.title.toLowerCase();
-      const desc = (item.description || "").toLowerCase();
-
-      if (!title.includes(keyword) && !desc.includes(keyword)) continue;
-      if (notifiedLinks.has(link)) continue;
-
-      notifiedLinks.add(link);
-
-      const price = item.price;
-      const photo = item.photo?.url;
-
+    try {
       await bot.sendMessage(
         CHAT_ID,
-        `✨ *Nuovo articolo trovato!*\n📛 *${item.title}*\n💶 Prezzo: ${price}€\n🔗 ${link}`,
+        `🔎 Cerco articoli per la keyword: *${keyword}*`,
         { parse_mode: "Markdown" }
       );
 
-      if (photo) await bot.sendPhoto(CHAT_ID, photo);
-      console.log("📨 Notificato:", item.title);
-    }
+      const items = await searchVinted(keyword);
 
-    await delay(2500);
+      if (items.length === 0) {
+        console.log(`✅ Trovati 0 articoli per "${keyword}"`);
+      }
+
+      for (const item of items) {
+        const link = `https://www.vinted.it/items/${item.id}`;
+        const title = item.title.toLowerCase();
+        const desc = (item.description || "").toLowerCase();
+
+        if (!title.includes(keyword) && !desc.includes(keyword)) continue;
+        if (notifiedLinks.has(link)) continue;
+
+        notifiedLinks.add(link);
+
+        const price = item.price;
+        const photo = item.photo?.url;
+
+        await bot.sendMessage(
+          CHAT_ID,
+          `✨ *Nuova carta trovata!*\n📛 *${item.title}*\n💶 Prezzo: ${price}€\n🔗 ${link}`,
+          { parse_mode: "Markdown" }
+        );
+
+        if (photo) await bot.sendPhoto(CHAT_ID, photo);
+        console.log("📨 Notificato:", item.title);
+      }
+
+      // Delay tra keyword per ridurre rischio blocco
+      await delay(5000);
+    } catch (err) {
+      console.error(
+        `❌ Errore durante il controllo della keyword "${keyword}":`,
+        err.message
+      );
+    }
   }
 
   isRunning = false;
@@ -130,8 +144,8 @@ setInterval(() => {
 }, 8 * 60 * 60 * 1000);
 
 // === CONTROLLI PERIODICI ===
-setInterval(checkVinted, 15 * 60 * 1000); // ogni 15 minuti
-setTimeout(checkVinted, 5000); // primo check dopo 5s
+setInterval(checkVinted, 15 * 60 * 1000);
+setTimeout(checkVinted, 10 * 1000);
 
 // =========================================================
 // 🔧 COMANDI TELEGRAM DINAMICI
@@ -164,6 +178,7 @@ bot.onText(/\/list/, (msg) => {
     bot.sendMessage(msg.chat.id, "📭 Nessuna keyword salvata.");
     return;
   }
+
   const list = KEYWORDS.map((k) => `• ${k}`).join("\n");
   bot.sendMessage(msg.chat.id, `📜 *Lista keyword attuali:*\n\n${list}`, {
     parse_mode: "Markdown",
@@ -173,6 +188,7 @@ bot.onText(/\/list/, (msg) => {
 // ❌ /remove keyword
 bot.onText(/\/remove (.+)/, (msg, match) => {
   const keyword = match[1].toLowerCase().trim();
+
   if (!KEYWORDS.includes(keyword)) {
     return bot.sendMessage(
       msg.chat.id,
@@ -180,6 +196,7 @@ bot.onText(/\/remove (.+)/, (msg, match) => {
       { parse_mode: "Markdown" }
     );
   }
+
   KEYWORDS = KEYWORDS.filter((k) => k !== keyword);
   fs.writeFileSync(
     "keywords.json",
@@ -190,7 +207,7 @@ bot.onText(/\/remove (.+)/, (msg, match) => {
   });
 });
 
-// === SERVER EXPRESS PER MONITORING ===
+// === SERVER PER MONITORING ===
 const app = express();
-app.get("/", (_, res) => res.send("PokéBot attivo e funzionante!"));
+app.get("/", (_, res) => res.send("PokéBot attivo con comandi dinamici."));
 app.listen(PORT, () => console.log(`Server su porta ${PORT}`));
