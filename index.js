@@ -1,36 +1,21 @@
+// index.js
 const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
-const fs = require("fs");
 require("dotenv").config();
 
 // === CONFIG ===
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 
-// === CARICAMENTO KEYWORDS DA FILE ===
-function loadKeywords() {
-  if (!fs.existsSync("keywords.json")) {
-    fs.writeFileSync(
-      "keywords.json",
-      JSON.stringify({ keywords: [] }, null, 2)
-    );
-  }
-  const data = JSON.parse(fs.readFileSync("keywords.json"));
-  return data.keywords;
+// === CARICAMENTO KEYWORDS ===
+// Da variabile ambiente (Render) o default a vuoto
+let KEYWORDS = [];
+if (process.env.KEYWORDS) {
+  KEYWORDS = process.env.KEYWORDS.split(",").map((k) => k.trim().toLowerCase());
 }
 
-function saveKeywords(list) {
-  fs.writeFileSync(
-    "keywords.json",
-    JSON.stringify({ keywords: list }, null, 2)
-  );
-}
-
-// Keywords dinamiche
-let KEYWORDS = loadKeywords();
-
-console.log("🔑 Keywords caricate:", KEYWORDS);
+console.log("🔑 Keywords iniziali:", KEYWORDS);
 
 // === TELEGRAM BOT ===
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
@@ -41,7 +26,7 @@ let notifiedLinks = new Set();
 let isRunning = false;
 
 function delay(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // === API VINTED ===
@@ -64,7 +49,7 @@ async function searchVinted(keyword) {
   return res.data.items || [];
 }
 
-// === MAIN CHECK FUNCTION ===
+// === FUNZIONE PRINCIPALE ===
 async function checkVinted() {
   if (isRunning) return;
   isRunning = true;
@@ -80,13 +65,9 @@ async function checkVinted() {
         const title = item.title.toLowerCase();
         const desc = (item.description || "").toLowerCase();
 
-        if (
-          !title.includes(keyword.toLowerCase()) &&
-          !desc.includes(keyword.toLowerCase())
-        )
-          continue;
-
+        if (!title.includes(keyword) && !desc.includes(keyword)) continue;
         if (notifiedLinks.has(link)) continue;
+
         notifiedLinks.add(link);
 
         const price = item.price;
@@ -111,7 +92,7 @@ async function checkVinted() {
   }
 }
 
-// === PULIZIA OGNI 8 ORE ===
+// === PULIZIA DUPLICATI OGNI 8 ORE ===
 setInterval(() => {
   notifiedLinks.clear();
   console.log("🧹 Pulizia notifiche.");
@@ -125,15 +106,11 @@ setTimeout(checkVinted, 10 * 1000);
 // 🔧 COMANDI TELEGRAM DINAMICI
 // =========================================================
 
-// ➕ /add keyword1 keyword2 keyword3...
+// ➕ /add keyword
 bot.onText(/\/add (.+)/, (msg, match) => {
-  const input = match[1].toLowerCase().trim();
-  const parts = input.split(" ");
-
-  const newKeyword = parts.join(" ");
+  const newKeyword = match[1].toLowerCase().trim();
   if (!KEYWORDS.includes(newKeyword)) {
     KEYWORDS.push(newKeyword);
-    saveKeywords(KEYWORDS);
     bot.sendMessage(msg.chat.id, `💾 Keyword aggiunta: *${newKeyword}*`, {
       parse_mode: "Markdown",
     });
@@ -141,9 +118,7 @@ bot.onText(/\/add (.+)/, (msg, match) => {
     bot.sendMessage(
       msg.chat.id,
       `⚠️ La keyword *${newKeyword}* è già presente.`,
-      {
-        parse_mode: "Markdown",
-      }
+      { parse_mode: "Markdown" }
     );
   }
 });
@@ -169,21 +144,17 @@ bot.onText(/\/remove (.+)/, (msg, match) => {
     return bot.sendMessage(
       msg.chat.id,
       `❌ Keyword *${keyword}* non trovata.`,
-      {
-        parse_mode: "Markdown",
-      }
+      { parse_mode: "Markdown" }
     );
   }
 
   KEYWORDS = KEYWORDS.filter((k) => k !== keyword);
-  saveKeywords(KEYWORDS);
-
   bot.sendMessage(msg.chat.id, `🗑️ Keyword rimossa: *${keyword}*`, {
     parse_mode: "Markdown",
   });
 });
 
-// === SERVER PER RENDER ===
+// === SERVER PER MONITORING ===
 const app = express();
 const port = process.env.PORT || 3000;
 app.get("/", (_, res) => res.send("PokéBot attivo con comandi dinamici."));

@@ -7,10 +7,14 @@
     "start": "node --max-old-space-size=512 index.js"
   },
   "dependencies": {
+    "array.prototype.findindex": "^2.2.4",
     "axios": "^1.12.2",
     "dotenv": "^17.2.3",
     "express": "^4.19.2",
     "node-telegram-bot-api": "^0.66.0",
     "proxy-from-env": "^1.1.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   }
 }
