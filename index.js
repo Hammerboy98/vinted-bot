@@ -24,7 +24,6 @@ try {
 console.log("🔑 Keywords iniziali:", KEYWORDS);
 
 // === TELEGRAM BOT ===
-// === TELEGRAM BOT ===
 const bot = new TelegramBot(TELEGRAM_TOKEN);
 
 // Funzione per forzare polling senza 409
@@ -54,7 +53,7 @@ const keywordMessage =
 
 bot.sendMessage(CHAT_ID, keywordMessage);
 
-// === SET PER EVITARE DUPLICATI ===
+// === UTILITIES PER RITARDI E DUPLICATI ===
 let notifiedLinks = new Set();
 let isRunning = false;
 
@@ -62,11 +61,21 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// === API VINTED ===
+/**
+ * Genera un ritardo in millisecondi tra un valore minimo e massimo.
+ * @param {number} min - Ritardo minimo (ms).
+ * @param {number} max - Ritardo massimo (ms).
+ */
+function randomDelay(min, max) {
+  return Math.floor(Math.random() * (max - min + 1) + min);
+}
+
+// === API VINTED con User-Agent e Headers aggiornati ===
 async function searchVinted(keyword) {
   const url = "https://www.vinted.it/api/v2/catalog/items";
   const params = {
     search_text: keyword,
+    // 1885 sembra essere un ID per le carte collezionabili (Collezionismo)
     catalog_ids: 1885,
     per_page: 20,
     page: 1,
@@ -78,8 +87,11 @@ async function searchVinted(keyword) {
       params,
       timeout: 7000,
       headers: {
+        // User-Agent aggiornato a una versione recente di Chrome (Cambia questo periodicamente se serve)
         "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+        // Aggiunto l'header Accept-Language per simulare un browser italiano
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
       },
     });
     return res.data.items || [];
@@ -88,6 +100,12 @@ async function searchVinted(keyword) {
       console.error(
         `❌ Errore ${err.response.status} durante la ricerca "${keyword}"`
       );
+      // Logga la risposta per debug se il codice non è 403
+      if (err.response.status !== 403) {
+        console.error(
+          `Risposta completa: ${JSON.stringify(err.response.data)}`
+        );
+      }
     } else {
       console.error(`❌ Errore durante la ricerca "${keyword}":`, err.message);
     }
@@ -95,7 +113,7 @@ async function searchVinted(keyword) {
   }
 }
 
-// === FUNZIONE PRINCIPALE ===
+// === FUNZIONE PRINCIPALE (Aggiunto Ritardo Randomizzato) ===
 async function checkVinted() {
   if (isRunning) return;
   isRunning = true;
@@ -103,11 +121,14 @@ async function checkVinted() {
   console.log("🔍 Controllo Vinted…");
 
   for (let keyword of KEYWORDS) {
+    // Nota: Il messaggio viene inviato ogni volta, potresti volerlo rimuovere per non spammare Telegram
+    /*
     await bot.sendMessage(
       CHAT_ID,
       `🔎 Cerco articoli per la keyword: *${keyword}*`,
       { parse_mode: "Markdown" }
     );
+    */
 
     const items = await searchVinted(keyword);
 
@@ -120,8 +141,12 @@ async function checkVinted() {
       const title = item.title.toLowerCase();
       const desc = (item.description || "").toLowerCase();
 
-      if (!title.includes(keyword) && !desc.includes(keyword)) continue;
-      if (notifiedLinks.has(link)) continue;
+      // Controllo se la keyword è nel titolo o descrizione E non è un duplicato
+      if (
+        (!title.includes(keyword) && !desc.includes(keyword)) ||
+        notifiedLinks.has(link)
+      )
+        continue;
 
       notifiedLinks.add(link);
 
@@ -130,7 +155,7 @@ async function checkVinted() {
 
       await bot.sendMessage(
         CHAT_ID,
-        `✨ *Nuova carta trovata!*\n📛 *${item.title}*\n💶 Prezzo: ${price}€\n🔗 ${link}`,
+        `✨ *Nuova carta trovata!*\n🔎 Keyword: ${keyword}\n📛 *${item.title}*\n💶 Prezzo: ${price}€\n🔗 ${link}`,
         { parse_mode: "Markdown" }
       );
 
@@ -138,10 +163,18 @@ async function checkVinted() {
       console.log("📨 Notificato:", item.title);
     }
 
-    await delay(2500);
+    // ⬇️ MODIFICA CHIAVE: Ritardo casuale tra 5 e 10 secondi (5000ms a 10000ms)
+    const waitTime = randomDelay(5000, 10000);
+    console.log(
+      `⏳ Attendo ${
+        waitTime / 1000
+      } secondi prima di cercare la prossima keyword...`
+    );
+    await delay(waitTime);
   }
 
   isRunning = false;
+  console.log("✅ Ciclo di controllo Vinted completato.");
 }
 
 // === PULIZIA DUPLICATI OGNI 8 ORE ===
@@ -151,11 +184,12 @@ setInterval(() => {
 }, 8 * 60 * 60 * 1000);
 
 // === CONTROLLI PERIODICI ===
+// Il ciclo completo avviene ogni 15 minuti, ma ora le pause interne sono più lunghe.
 setInterval(checkVinted, 15 * 60 * 1000);
 setTimeout(checkVinted, 10 * 1000);
 
 // =========================================================
-// 🔧 COMANDI TELEGRAM DINAMICI
+// 🔧 COMANDI TELEGRAM DINAMICI (Nessuna modifica qui)
 // =========================================================
 
 // ➕ /add keyword
