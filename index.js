@@ -92,6 +92,7 @@ async function searchVinted(keyword) {
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
         // Aggiunto l'header Accept-Language per simulare un browser italiano
         "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+        Connection: "keep-alive",
       },
     });
     return res.data.items || [];
@@ -164,7 +165,7 @@ async function checkVinted() {
     }
 
     // ⬇️ MODIFICA CHIAVE: Ritardo casuale tra 5 e 10 secondi (5000ms a 10000ms)
-    const waitTime = randomDelay(5000, 10000);
+    const waitTime = randomDelay(15000, 25000);
     console.log(
       `⏳ Attendo ${
         waitTime / 1000
@@ -185,7 +186,7 @@ setInterval(() => {
 
 // === CONTROLLI PERIODICI ===
 // Il ciclo completo avviene ogni 15 minuti, ma ora le pause interne sono più lunghe.
-setInterval(checkVinted, 15 * 60 * 1000);
+setInterval(checkVinted, 30 * 60 * 1000);
 setTimeout(checkVinted, 10 * 1000);
 
 // =========================================================
