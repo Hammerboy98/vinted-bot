@@ -10,10 +10,11 @@
     "array.prototype.findindex": "^2.2.4",
     "axios": "^1.13.2",
     "bl": "^6.1.4",
+    "cheerio": "^1.1.2",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "file-type": "^21.1.1",
-    "node-telegram-bot-api": "^0.66.0",
+    "node-telegram-bot-api": "^0.63.0",
     "proxy-from-env": "^1.1.0"
   },
   "engines": {

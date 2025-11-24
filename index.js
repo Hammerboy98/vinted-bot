@@ -2,12 +2,29 @@ const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
 const fs = require("fs");
-require("dotenv").config();
+require("dotenv").config(); // <--- Questa riga è CRUCIALE
 
-// === CONFIG ===
+// ⭐ CONFIGURAZIONE ORA LEGGE DA .ENV ⭐
+let VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING;
+
+// ⭐ NUOVA PULIZIA AGGRESSIVA CONTRO I CARATTERI INVALIDI ⭐
+if (VINTED_COOKIE_STRING) {
+  // 1. Rimuove caratteri non validi: Mantiene solo lettere, numeri, _, -, =, :, ;, / e punti
+  VINTED_COOKIE_STRING = VINTED_COOKIE_STRING.replace(
+    /[^a-zA-Z0-9_\-=:,;\/.\s]/g,
+    ""
+  ) // Rimuove tutto ciò che non è un carattere valido per un cookie
+    .replace(/[\n\r]/g, "") // Rimuove a capo/ritorno carrello
+    .trim(); // Rimuove spazi vuoti iniziali e finali
+}
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 const PORT = process.env.PORT || 3000;
+
+// === COSTANTI AGGIUNTIVE ===
+const USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
+// ... il resto del codice ...
 
 // === LETTURA KEYWORDS DA FILE JSON ===
 let KEYWORDS = [];
@@ -23,20 +40,15 @@ try {
 
 console.log("🔑 Keywords iniziali:", KEYWORDS);
 
-// === TELEGRAM BOT ===
+// === TELEGRAM BOT SETUP ===
 const bot = new TelegramBot(TELEGRAM_TOKEN);
 
-// Funzione per forzare polling senza 409
 async function startBotPolling() {
   try {
-    // 1️⃣ Cancella webhook se presente
+    // Cancella webhook e forza il polling
     await bot.setWebHook("");
     console.log("✅ Webhook Telegram cancellato, avvio polling...");
-
-    // 2️⃣ Aspetta 2 secondi prima di iniziare il polling
     await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // 3️⃣ Avvia il polling
     bot.startPolling();
   } catch (err) {
     console.error("❌ Errore avvio polling:", err.message);
@@ -45,7 +57,6 @@ async function startBotPolling() {
 
 startBotPolling();
 
-// Messaggio di avvio con keywords
 const keywordMessage =
   KEYWORDS.length > 0
     ? `🟢 PokéBot attivo!\n🔑 Keyword attuali:\n• ${KEYWORDS.join("\n• ")}`
@@ -63,58 +74,58 @@ function delay(ms) {
 
 /**
  * Genera un ritardo in millisecondi tra un valore minimo e massimo.
- * @param {number} min - Ritardo minimo (ms).
- * @param {number} max - Ritardo massimo (ms).
  */
 function randomDelay(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-// === API VINTED con User-Agent e Headers aggiornati ===
+// 🛡️ FUNZIONE API CON HEADERS E COOKIE AGGIORNATI
 async function searchVinted(keyword) {
   const url = "https://www.vinted.it/api/v2/catalog/items";
   const params = {
     search_text: keyword,
-    // 1885 sembra essere un ID per le carte collezionabili (Collezionismo)
-    catalog_ids: 1885,
-    per_page: 20,
-    page: 1,
-    order: "newest_first",
   };
 
   try {
     const res = await axios.get(url, {
       params,
-      timeout: 7000,
+      timeout: 10000,
       headers: {
-        // User-Agent aggiornato a una versione recente di Chrome (Cambia questo periodicamente se serve)
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-        // Aggiunto l'header Accept-Language per simulare un browser italiano
+        "User-Agent": USER_AGENT,
+        // Accept corretto per l'API JSON
+        Accept: "application/json, text/plain, */*",
         "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+        Referer: "https://www.vinted.it/",
         Connection: "keep-alive",
+        // ⭐ COOKIE CRITICO AGGIUNTO QUI ⭐
+        Cookie: VINTED_COOKIE_STRING,
       },
     });
+
     return res.data.items || [];
   } catch (err) {
     if (err.response) {
       console.error(
-        `❌ Errore ${err.response.status} durante la ricerca "${keyword}"`
+        `❌ Errore ${err.response.status} durante la ricerca API per "${keyword}"`
       );
-      // Logga la risposta per debug se il codice non è 403
-      if (err.response.status !== 403) {
+      if (err.response.status === 403) {
+        console.error(`🛑 BLOCCO 403 RILEVATO. Riprova più tardi.`);
+      } else if (err.response.status === 401) {
         console.error(
-          `Risposta completa: ${JSON.stringify(err.response.data)}`
+          `🛑 BLOCCO 401 RILEVATO. **Il Cookie di sessione è scaduto o non valido**. Devi aggiornare la costante VINTED_COOKIE_STRING.`
         );
       }
     } else {
-      console.error(`❌ Errore durante la ricerca "${keyword}":`, err.message);
+      console.error(
+        `❌ Errore durante la ricerca API "${keyword}":`,
+        err.message
+      );
     }
     return [];
   }
 }
 
-// === FUNZIONE PRINCIPALE (Aggiunto Ritardo Randomizzato) ===
+// === FUNZIONE PRINCIPALE DI CONTROLLO ===
 async function checkVinted() {
   if (isRunning) return;
   isRunning = true;
@@ -122,15 +133,6 @@ async function checkVinted() {
   console.log("🔍 Controllo Vinted…");
 
   for (let keyword of KEYWORDS) {
-    // Nota: Il messaggio viene inviato ogni volta, potresti volerlo rimuovere per non spammare Telegram
-    /*
-    await bot.sendMessage(
-      CHAT_ID,
-      `🔎 Cerco articoli per la keyword: *${keyword}*`,
-      { parse_mode: "Markdown" }
-    );
-    */
-
     const items = await searchVinted(keyword);
 
     if (items.length === 0) {
@@ -138,34 +140,34 @@ async function checkVinted() {
     }
 
     for (const item of items) {
-      const link = `https://www.vinted.it/items/${item.id}`;
+      // ⭐ CORREZIONE: COSTRUIAMO URL E PREZZO CORRETTAMENTE ⭐
+      const articleId = item.id;
+      const link = `https://www.vinted.it/items/${articleId}`;
       const title = item.title.toLowerCase();
-      const desc = (item.description || "").toLowerCase();
 
-      // Controllo se la keyword è nel titolo o descrizione E non è un duplicato
-      if (
-        (!title.includes(keyword) && !desc.includes(keyword)) ||
-        notifiedLinks.has(link)
-      )
-        continue;
+      // Vinted price è una stringa, usiamo item.price
+      const price = item.price; // Esempio: "15.00"
+
+      // Controllo se il titolo contiene la keyword e se il link è già stato notificato
+      if (!title.includes(keyword) || notifiedLinks.has(link)) continue;
 
       notifiedLinks.add(link);
 
-      const price = item.price;
-      const photo = item.photo?.url;
-
+      // ⭐ MESSAGGIO TELEGRAM CORRETTO CON PREZZO E LINK ⭐
       await bot.sendMessage(
         CHAT_ID,
-        `✨ *Nuova carta trovata!*\n🔎 Keyword: ${keyword}\n📛 *${item.title}*\n💶 Prezzo: ${price}€\n🔗 ${link}`,
-        { parse_mode: "Markdown" }
+        `✨ **Nuovo Articolo Trovato!**\n🔎 Keyword: ${keyword}\n\n📛 *${item.title}*\n\n💰 **Prezzo:** ${price} €\n\n🔗 ${link}`,
+        {
+          parse_mode: "Markdown",
+          disable_web_page_preview: false, // Lascia attiva l'anteprima del link
+        }
       );
 
-      if (photo) bot.sendPhoto(CHAT_ID, photo);
       console.log("📨 Notificato:", item.title);
     }
 
-    // ⬇️ MODIFICA CHIAVE: Ritardo casuale tra 5 e 10 secondi (5000ms a 10000ms)
-    const waitTime = randomDelay(15000, 25000);
+    // Ritardo casuale tra 10 e 20 secondi tra una keyword e l'altra
+    const waitTime = randomDelay(10000, 20000);
     console.log(
       `⏳ Attendo ${
         waitTime / 1000
@@ -178,19 +180,37 @@ async function checkVinted() {
   console.log("✅ Ciclo di controllo Vinted completato.");
 }
 
+// ⏰ LOGICA RIVISTA: Ciclo imprevedibile e lento per evitare il blocco 403
+async function startVintedLoop() {
+  // Esegui il controllo una volta subito
+  checkVinted();
+
+  while (true) {
+    // Ritardo principale: aspetta tra 10 minuti (600000ms) e 60 minuti (3600000ms)
+    const loopWaitTime = randomDelay(600000, 3600000);
+
+    console.log(
+      `--- CICLO COMPLETATO. Prossimo controllo tra ${(
+        loopWaitTime / 60000
+      ).toFixed(1)} minuti. ---`
+    );
+    await delay(loopWaitTime);
+
+    await checkVinted();
+  }
+}
+
+// Avvia il ciclo principale
+startVintedLoop();
+
 // === PULIZIA DUPLICATI OGNI 8 ORE ===
 setInterval(() => {
   notifiedLinks.clear();
   console.log("🧹 Pulizia notifiche.");
 }, 8 * 60 * 60 * 1000);
 
-// === CONTROLLI PERIODICI ===
-// Il ciclo completo avviene ogni 15 minuti, ma ora le pause interne sono più lunghe.
-setInterval(checkVinted, 30 * 60 * 1000);
-setTimeout(checkVinted, 10 * 1000);
-
 // =========================================================
-// 🔧 COMANDI TELEGRAM DINAMICI (Nessuna modifica qui)
+// 🔧 COMANDI TELEGRAM DINAMICI
 // =========================================================
 
 // ➕ /add keyword
