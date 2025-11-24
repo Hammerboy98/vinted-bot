@@ -5,18 +5,34 @@ const fs = require("fs");
 require("dotenv").config();
 
 // ⭐ CONFIGURAZIONE ORA LEGGE DA .ENV (RENDER) ⭐
-let VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING;
+const VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING;
+const VINTED_ANON_ID = process.env.VINTED_ANON_ID;
+const VINTED_CSRF_TOKEN = process.env.VINTED_CSRF_TOKEN;
+
+// ⭐ CONTROLLO ESSENZIALE ALL'AVVIO ⭐
+if (
+  !process.env.TELEGRAM_TOKEN ||
+  !process.env.CHAT_ID ||
+  !VINTED_COOKIE_STRING ||
+  !VINTED_CSRF_TOKEN
+) {
+  console.error(
+    "🛑 Variabili d'ambiente TOKEN, CHAT_ID, COOKIE o CSRF MANCANTI. Impossibile avviare il bot."
+  );
+  // Non usiamo process.exit(1) per non bloccare Render in caso di Webhook setup
+}
 
 // ⭐ NUOVA PULIZIA AGGRESSIVA CONTRO I CARATTERI INVALIDI ⭐
-if (VINTED_COOKIE_STRING) {
+// Eseguita direttamente sulla variabile VINTED_COOKIE_STRING
+let cleanedCookie = VINTED_COOKIE_STRING;
+if (cleanedCookie) {
   // 1. Rimuove caratteri non validi: Mantiene solo lettere, numeri, _, -, =, :, ;, / e punti
-  VINTED_COOKIE_STRING = VINTED_COOKIE_STRING.replace(
-    /[^a-zA-Z0-9_\-=:,;\/.\s]/g,
-    ""
-  ) // Rimuove tutto ciò che non è un carattere valido per un cookie
+  cleanedCookie = cleanedCookie
+    .replace(/[^a-zA-Z0-9_\-=:,;\/.\s]/g, "") // Rimuove tutto ciò che non è un carattere valido per un cookie
     .replace(/[\n\r]/g, "") // Rimuove a capo/ritorno carrello
     .trim(); // Rimuove spazi vuoti iniziali e finali
 }
+
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 const PORT = process.env.PORT || 3000;
@@ -65,6 +81,14 @@ async function searchVinted(keyword) {
     search_text: keyword,
   };
 
+  // Se mancano i token essenziali, saltiamo la ricerca API per evitare 401
+  if (!cleanedCookie || !VINTED_CSRF_TOKEN) {
+    console.error(
+      "🛑 SALTO RICERCA API: Cookie o CSRF token non impostati o non validi."
+    );
+    return [];
+  }
+
   try {
     const res = await axios.get(url, {
       params,
@@ -76,8 +100,14 @@ async function searchVinted(keyword) {
         "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
         Referer: "https://www.vinted.it/",
         Connection: "keep-alive",
-        // ⭐ COOKIE CRITICO AGGIUNTO QUI ⭐
-        Cookie: VINTED_COOKIE_STRING,
+
+        // ⭐ COOKIE CRITICO AGGIUNTO QUI (PULITO) ⭐
+        Cookie: cleanedCookie,
+
+        // ⭐ NUOVI HEADER ESSENZIALI (come visti nel log 200) ⭐
+        "X-Anon-Id": VINTED_ANON_ID,
+        "X-CSRF-Token": VINTED_CSRF_TOKEN,
+        "X-Money-Object": "true",
       },
     });
 
@@ -91,7 +121,7 @@ async function searchVinted(keyword) {
         console.error(`🛑 BLOCCO 403 RILEVATO. Riprova più tardi.`);
       } else if (err.response.status === 401) {
         console.error(
-          `🛑 BLOCCO 401 RILEVATO. **Il Cookie di sessione è scaduto o non valido**. Devi aggiornare la costante VINTED_COOKIE_STRING.`
+          `🛑 BLOCCO 401 RILEVATO. **Il Cookie di sessione/CSRF è scaduto o non valido**. Devi aggiornare le variabili d'ambiente.`
         );
       }
     } else {
@@ -114,7 +144,6 @@ async function checkVinted() {
   for (let keyword of KEYWORDS) {
     const items = await searchVinted(keyword);
 
-    // Dobbiamo re-inizializzare il bot qui per l'invio, anche se è impostato con Webhook
     if (items.length === 0) {
       console.log(`✅ Trovati 0 articoli per "${keyword}"`);
     }
@@ -129,7 +158,8 @@ async function checkVinted() {
       const price = item.price; // Esempio: "15.00"
 
       // Controllo se il titolo contiene la keyword e se il link è già stato notificato
-      if (!title.includes(keyword) || notifiedLinks.has(link)) continue;
+      // Nota: la keyword non sempre è presente nel titolo, ma in questo caso la lasciamo per scremare
+      if (notifiedLinks.has(link)) continue; // || !title.includes(keyword)
 
       notifiedLinks.add(link);
 
