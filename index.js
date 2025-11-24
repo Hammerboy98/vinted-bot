@@ -2,9 +2,9 @@ const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
 const fs = require("fs");
-require("dotenv").config(); // <--- Questa riga è CRUCIALE
+require("dotenv").config();
 
-// ⭐ CONFIGURAZIONE ORA LEGGE DA .ENV ⭐
+// ⭐ CONFIGURAZIONE ORA LEGGE DA .ENV (RENDER) ⭐
 let VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING;
 
 // ⭐ NUOVA PULIZIA AGGRESSIVA CONTRO I CARATTERI INVALIDI ⭐
@@ -24,7 +24,6 @@ const PORT = process.env.PORT || 3000;
 // === COSTANTI AGGIUNTIVE ===
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
-// ... il resto del codice ...
 
 // === LETTURA KEYWORDS DA FILE JSON ===
 let KEYWORDS = [];
@@ -41,28 +40,8 @@ try {
 console.log("🔑 Keywords iniziali:", KEYWORDS);
 
 // === TELEGRAM BOT SETUP ===
-const bot = new TelegramBot(TELEGRAM_TOKEN);
-
-async function startBotPolling() {
-  try {
-    // Cancella webhook e forza il polling
-    await bot.setWebHook("");
-    console.log("✅ Webhook Telegram cancellato, avvio polling...");
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    bot.startPolling();
-  } catch (err) {
-    console.error("❌ Errore avvio polling:", err.message);
-  }
-}
-
-startBotPolling();
-
-const keywordMessage =
-  KEYWORDS.length > 0
-    ? `🟢 PokéBot attivo!\n🔑 Keyword attuali:\n• ${KEYWORDS.join("\n• ")}`
-    : "🟢 PokéBot attivo!\n⚠️ Nessuna keyword impostata.";
-
-bot.sendMessage(CHAT_ID, keywordMessage);
+// Imposta il bot in modalità Webhook (necessario per Render)
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 
 // === UTILITIES PER RITARDI E DUPLICATI ===
 let notifiedLinks = new Set();
@@ -135,12 +114,13 @@ async function checkVinted() {
   for (let keyword of KEYWORDS) {
     const items = await searchVinted(keyword);
 
+    // Dobbiamo re-inizializzare il bot qui per l'invio, anche se è impostato con Webhook
     if (items.length === 0) {
       console.log(`✅ Trovati 0 articoli per "${keyword}"`);
     }
 
     for (const item of items) {
-      // ⭐ CORREZIONE: COSTRUIAMO URL E PREZZO CORRETTAMENTE ⭐
+      // ⭐ COSTRUIAMO URL E PREZZO CORRETTAMENTE ⭐
       const articleId = item.id;
       const link = `https://www.vinted.it/items/${articleId}`;
       const title = item.title.toLowerCase();
@@ -154,16 +134,19 @@ async function checkVinted() {
       notifiedLinks.add(link);
 
       // ⭐ MESSAGGIO TELEGRAM CORRETTO CON PREZZO E LINK ⭐
-      await bot.sendMessage(
-        CHAT_ID,
-        `✨ **Nuovo Articolo Trovato!**\n🔎 Keyword: ${keyword}\n\n📛 *${item.title}*\n\n💰 **Prezzo:** ${price} €\n\n🔗 ${link}`,
-        {
-          parse_mode: "Markdown",
-          disable_web_page_preview: false, // Lascia attiva l'anteprima del link
-        }
-      );
-
-      console.log("📨 Notificato:", item.title);
+      try {
+        await bot.sendMessage(
+          CHAT_ID,
+          `✨ **Nuovo Articolo Trovato!**\n🔎 Keyword: ${keyword}\n\n📛 *${item.title}*\n\n💰 **Prezzo:** ${price} €\n\n🔗 ${link}`,
+          {
+            parse_mode: "Markdown",
+            disable_web_page_preview: false, // Lascia attiva l'anteprima del link
+          }
+        );
+        console.log("📨 Notificato:", item.title);
+      } catch (e) {
+        console.error("❌ Errore invio messaggio Telegram:", e.message);
+      }
     }
 
     // Ritardo casuale tra 10 e 20 secondi tra una keyword e l'altra
@@ -186,8 +169,8 @@ async function startVintedLoop() {
   checkVinted();
 
   while (true) {
-    // Ritardo principale: aspetta tra 10 minuti (600000ms) e 60 minuti (3600000ms)
-    const loopWaitTime = randomDelay(600000, 3600000);
+    // Ritardo principale: aspetta tra 30 minuti (1.8M ms) e 90 minuti (5.4M ms)
+    const loopWaitTime = randomDelay(1800000, 5400000);
 
     console.log(
       `--- CICLO COMPLETATO. Prossimo controllo tra ${(
@@ -208,6 +191,44 @@ setInterval(() => {
   notifiedLinks.clear();
   console.log("🧹 Pulizia notifiche.");
 }, 8 * 60 * 60 * 1000);
+
+// =========================================================
+// ⭐ CONFIGURAZIONE WEBHOOK (Per eliminare l'errore 409)
+// =========================================================
+const app = express();
+app.use(express.json()); // Middleware per leggere i dati JSON
+
+const externalUrl = process.env.RENDER_EXTERNAL_URL;
+
+if (externalUrl) {
+  // 1. Configura il Webhook su Telegram
+  const webhookUrl = `${externalUrl}/bot${TELEGRAM_TOKEN}`;
+  bot
+    .setWebHook(webhookUrl)
+    .then(() => {
+      console.log(`✅ Webhook impostato su: ${webhookUrl}`);
+    })
+    .catch((err) => {
+      console.error("❌ Errore impostazione Webhook:", err.message);
+    });
+
+  // 2. Endpoint per ricevere i messaggi da Telegram
+  app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
+  });
+
+  // 3. Server per monitoraggio (Health Check)
+  app.get("/", (_, res) => res.send("PokéBot attivo tramite Webhook."));
+} else {
+  // Fallback locale (questa parte non dovrebbe essere eseguita su Render)
+  console.log("⚠️ Variabile RENDER_EXTERNAL_URL non trovata. Avvio Polling.");
+  bot.startPolling();
+  app.get("/", (_, res) => res.send("PokéBot attivo con Polling."));
+}
+
+// Avvia il server Express
+app.listen(PORT, () => console.log(`Server su porta ${PORT}`));
 
 // =========================================================
 // 🔧 COMANDI TELEGRAM DINAMICI
@@ -268,8 +289,3 @@ bot.onText(/\/remove (.+)/, (msg, match) => {
     parse_mode: "Markdown",
   });
 });
-
-// === SERVER PER MONITORING ===
-const app = express();
-app.get("/", (_, res) => res.send("PokéBot attivo con comandi dinamici."));
-app.listen(PORT, () => console.log(`Server su porta ${PORT}`));
