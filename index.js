@@ -193,19 +193,20 @@ async function checkVinted() {
   console.log("✅ Ciclo di controllo Vinted completato.");
 }
 
-// ⏰ LOGICA RIVISTA: Ciclo imprevedibile e lento per evitare il blocco 403
+// ⏰ LOGICA MODIFICATA: Ciclo FISSO ogni 15 minuti (900.000 ms)
 async function startVintedLoop() {
   // Esegui il controllo una volta subito
   checkVinted();
 
+  // 15 minuti in millisecondi
+  const FIFTEEN_MINUTES_MS = 900000;
+
   while (true) {
-    // Ritardo principale: aspetta tra 30 minuti (1.8M ms) e 90 minuti (5.4M ms)
-    const loopWaitTime = randomDelay(1800000, 5400000);
+    // Ritardo principale: attende 15 minuti esatti.
+    const loopWaitTime = FIFTEEN_MINUTES_MS;
 
     console.log(
-      `--- CICLO COMPLETATO. Prossimo controllo tra ${(
-        loopWaitTime / 60000
-      ).toFixed(1)} minuti. ---`
+      `--- CICLO COMPLETATO. Prossimo controllo tra 15.0 minuti. ---`
     );
     await delay(loopWaitTime);
 
