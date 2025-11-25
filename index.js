@@ -54,7 +54,7 @@ try {
 }
 
 console.log("🔑 Keywords iniziali:", KEYWORDS);
-
+//namo
 // === TELEGRAM BOT SETUP ===
 // Imposta il bot in modalità Webhook (necessario per Render)
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
