@@ -1,16 +1,52 @@
 {
   "keywords": [
-    "Pokemon Gold Star Rayquaza",
-    "Pokemon Gold Star Latios",
-    "Pokemon Gold Star Latias",
-    "Pokemon Gold Star Mudkip",
-    "Pokemon Gold Star Torchic",
-    "Pokemon Gold Star Treecko",
-    "Pokemon Skyridge Charizard",
-    "Pokemon Aquapolis Lugia",
-    "Pokemon Expedition Charizard",
-    "Pokemon CoroCoro Mew",
-    "Pokemon PSA 10",
-    "Pokemon BGS 10"
+    {
+      "search": "Pokemon Gold Star Rayquaza",
+      "must_contain": ["pokemon", "gold", "star", "rayquaza"]
+    },
+    {
+      "search": "Pokemon Gold Star Latios",
+      "must_contain": ["pokemon", "gold", "star", "latios"]
+    },
+    {
+      "search": "Pokemon Gold Star Latias",
+      "must_contain": ["pokemon", "gold", "star", "latias"]
+    },
+    {
+      "search": "Pokemon Gold Star Mudkip",
+      "must_contain": ["pokemon", "gold", "star", "mudkip"]
+    },
+    {
+      "search": "Pokemon Gold Star Torchic",
+      "must_contain": ["pokemon", "gold", "star", "torchic"]
+    },
+    {
+      "search": "Pokemon Gold Star Treecko",
+      "must_contain": ["pokemon", "gold", "star", "treecko"]
+    },
+    {
+      "search": "Pokemon Skyridge Charizard",
+      "must_contain": ["pokemon", "skyridge", "charizard"]
+    },
+    {
+      "search": "Pokemon Aquapolis Lugia",
+      "must_contain": ["pokemon", "aquapolis", "lugia"]
+    },
+    {
+      "search": "Pokemon Expedition Charizard",
+      "must_contain": ["pokemon", "expedition", "charizard"]
+    },
+    {
+      "search": "Pokemon CoroCoro Mew",
+      "must_contain": ["pokemon", "corocoro", "mew"]
+    },
+    {
+      "search": "Pokemon PSA 10",
+      "must_contain": ["pokemon", "psa", "10"]
+    },
+    {
+      "search": "Pokemon BGS 10",
+      "must_contain": ["pokemon", "bgs", "10"]
+    }
   ]
 }

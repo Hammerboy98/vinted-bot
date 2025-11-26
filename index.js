@@ -19,18 +19,16 @@ if (
   console.error(
     "🛑 Variabili d'ambiente TOKEN, CHAT_ID, COOKIE o CSRF MANCANTI. Impossibile avviare il bot."
   );
-  // Non usiamo process.exit(1) per non bloccare Render in caso di Webhook setup
 }
 
 // ⭐ NUOVA PULIZIA AGGRESSIVA CONTRO I CARATTERI INVALIDI ⭐
-// Eseguita direttamente sulla variabile VINTED_COOKIE_STRING
 let cleanedCookie = VINTED_COOKIE_STRING;
 if (cleanedCookie) {
   // 1. Rimuove caratteri non validi: Mantiene solo lettere, numeri, _, -, =, :, ;, / e punti
   cleanedCookie = cleanedCookie
-    .replace(/[^a-zA-Z0-9_\-=:,;\/.\s]/g, "") // Rimuove tutto ciò che non è un carattere valido per un cookie
-    .replace(/[\n\r]/g, "") // Rimuove a capo/ritorno carrello
-    .trim(); // Rimuove spazi vuoti iniziali e finali
+    .replace(/[^a-zA-Z0-9_\-=:,;\/.\s]/g, "")
+    .replace(/[\n\r]/g, "")
+    .trim();
 }
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -41,22 +39,26 @@ const PORT = process.env.PORT || 3000;
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
 
-// === LETTURA KEYWORDS DA FILE JSON ===
-let KEYWORDS = [];
+// === LETTURA KEYWORDS DA FILE JSON (ORA ARRAY DI OGGETTI) ===
+let KEYWORDS_CONFIG = [];
 try {
   const data = fs.readFileSync("keywords.json", "utf8");
   const json = JSON.parse(data);
-  KEYWORDS = json.keywords || [];
+  // La struttura json.keywords dovrebbe essere: [{search: "...", must_contain: [...]}, ...]
+  KEYWORDS_CONFIG = json.keywords || [];
 } catch (err) {
   console.log(
-    "⚠️ Nessun file keywords.json trovato o errore di lettura, uso array vuoto."
+    "⚠️ Nessun file keywords.json trovato o errore di lettura, uso array vuoto. Errore:",
+    err.message
   );
 }
 
-console.log("🔑 Keywords iniziali:", KEYWORDS);
-//namo
+console.log(
+  "🔑 Keywords iniziali (ricerca):",
+  KEYWORDS_CONFIG.map((k) => k.search || "N/A")
+);
+
 // === TELEGRAM BOT SETUP ===
-// Imposta il bot in modalità Webhook (necessario per Render)
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 
 // === UTILITIES PER RITARDI E DUPLICATI ===
@@ -79,9 +81,9 @@ async function searchVinted(keyword) {
   const url = "https://www.vinted.it/api/v2/catalog/items";
   const params = {
     search_text: keyword,
+    // Possibile aggiungere filtri qui per categoria/condizione se necessario, ma partiamo dal testo
   };
 
-  // Se mancano i token essenziali, saltiamo la ricerca API per evitare 401
   if (!cleanedCookie || !VINTED_CSRF_TOKEN) {
     console.error(
       "🛑 SALTO RICERCA API: Cookie o CSRF token non impostati o non validi."
@@ -95,7 +97,6 @@ async function searchVinted(keyword) {
       timeout: 10000,
       headers: {
         "User-Agent": USER_AGENT,
-        // Accept corretto per l'API JSON
         Accept: "application/json, text/plain, */*",
         "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
         Referer: "https://www.vinted.it/",
@@ -104,7 +105,6 @@ async function searchVinted(keyword) {
         // ⭐ COOKIE CRITICO AGGIUNTO QUI (PULITO) ⭐
         Cookie: cleanedCookie,
 
-        // ⭐ NUOVI HEADER ESSENZIALI (come visti nel log 200) ⭐
         "X-Anon-Id": VINTED_ANON_ID,
         "X-CSRF-Token": VINTED_CSRF_TOKEN,
         "X-Money-Object": "true",
@@ -117,11 +117,9 @@ async function searchVinted(keyword) {
       console.error(
         `❌ Errore ${err.response.status} durante la ricerca API per "${keyword}"`
       );
-      if (err.response.status === 403) {
-        console.error(`🛑 BLOCCO 403 RILEVATO. Riprova più tardi.`);
-      } else if (err.response.status === 401) {
+      if (err.response.status === 401) {
         console.error(
-          `🛑 BLOCCO 401 RILEVATO. **Il Cookie di sessione/CSRF è scaduto o non valido**. Devi aggiornare le variabili d'ambiente.`
+          `🛑 BLOCCO 401 RILEVATO. **Il Cookie di sessione/CSRF è scaduto o non valido**.`
         );
       }
     } else {
@@ -134,62 +132,74 @@ async function searchVinted(keyword) {
   }
 }
 
-// === FUNZIONE PRINCIPALE DI CONTROLLO ===
+// === FUNZIONE PRINCIPALE DI CONTROLLO CON FILTRO AGGRESSIVO ===
 async function checkVinted() {
   if (isRunning) return;
   isRunning = true;
 
   console.log("🔍 Controllo Vinted…");
 
-  for (let keyword of KEYWORDS) {
+  // Itera sulla configurazione delle keyword (che ora sono oggetti)
+  for (let config of KEYWORDS_CONFIG) {
+    const keyword = config.search;
+    // mustContain: Array di parole chiave che DEVONO essere presenti nel risultato (logica AND)
+    const mustContain = config.must_contain || [];
+
     const items = await searchVinted(keyword);
 
     if (items.length === 0) {
       console.log(`✅ Trovati 0 articoli per "${keyword}"`);
     }
 
+    // ⭐ NUOVO: CICLO DI FILTRAGGIO AGGRESSIVO ⭐
     for (const item of items) {
-      // ⭐ COSTRUIAMO URL E PREZZO CORRETTAMENTE ⭐
       const articleId = item.id;
       const link = `https://www.vinted.it/items/${articleId}`;
-      const title = item.title.toLowerCase();
 
-      // Vinted price è una stringa, usiamo item.price
-      const price = item.price; // Esempio: "15.00"
+      // Combiniamo titolo e descrizione in minuscolo per la verifica
+      const searchContent = `${item.title} ${item.description}`.toLowerCase();
 
-      // Controllo se il titolo contiene la keyword e se il link è già stato notificato
-      // Nota: la keyword non sempre è presente nel titolo, ma in questo caso la lasciamo per scremare
-      if (notifiedLinks.has(link)) continue; // || !title.includes(keyword)
+      // Controllo di coerenza: l'articolo DEVE contenere TUTTE le parole in 'mustContain'
+      const isRelevant = mustContain.every((word) =>
+        searchContent.includes(word)
+      );
+
+      if (!isRelevant) {
+        // Articolo non pertinente (manca una delle parole chiave essenziali filtrate)
+        continue;
+      }
+
+      // Controllo anti-duplicato
+      if (notifiedLinks.has(link)) continue;
 
       notifiedLinks.add(link);
 
       // ⭐ MESSAGGIO TELEGRAM CORRETTO CON PREZZO E LINK ⭐
+      const price = item.price;
       const photoUrl = item.photo ? item.photo.url : null;
 
-      // Costruzione della didascalia con dettagli e link
-      const caption = `✨ **Nuovo Articolo Trovato!**\n🔎 Keyword: ${keyword}\n\n📛 *${item.title}*\n\n💰 **Prezzo:** ${price} €\n\n🔗 [Vedi Articolo](${link})`;
+      const caption = `✨ **Nuovo Articolo Trovato!**\n🔎 Keyword di Ricerca: ${keyword}\n\n📛 *${item.title}*\n\n💰 **Prezzo:** ${price} €\n\n🔗 [Vedi Articolo](${link})`;
 
       if (photoUrl) {
         try {
           await bot.sendPhoto(CHAT_ID, photoUrl, {
             caption: caption,
             parse_mode: "Markdown",
-            // Si può rimuovere l'anteprima web dal link se si preferisce, ma l'immagine è già presente
           });
           console.log("📨 Notificato con Foto:", item.title);
         } catch (e) {
           console.error("❌ Errore invio foto Telegram:", e.message);
-          // Fallback: se l'invio della foto fallisce, inviamo solo il messaggio di testo
+          // Fallback
           await bot.sendMessage(CHAT_ID, caption, { parse_mode: "Markdown" });
         }
       } else {
-        // Se la foto non è disponibile, inviamo solo il messaggio di testo
+        // Se la foto non è disponibile
         await bot.sendMessage(CHAT_ID, caption, { parse_mode: "Markdown" });
         console.log("📨 Notificato (solo testo):", item.title);
       }
-    }
+    } // fine for (item)
 
-    // Ritardo casuale tra 10 e 20 secondi tra una keyword e l'altra
+    // Ritardo casuale tra una keyword e l'altra
     const waitTime = randomDelay(10000, 20000);
     console.log(
       `⏳ Attendo ${
@@ -197,7 +207,7 @@ async function checkVinted() {
       } secondi prima di cercare la prossima keyword...`
     );
     await delay(waitTime);
-  }
+  } // fine for (config)
 
   isRunning = false;
   console.log("✅ Ciclo di controllo Vinted completato.");
@@ -208,11 +218,9 @@ async function startVintedLoop() {
   // Esegui il controllo una volta subito
   checkVinted();
 
-  // 15 minuti in millisecondi
   const FIFTEEN_MINUTES_MS = 900000;
 
   while (true) {
-    // Ritardo principale: attende 15 minuti esatti.
     const loopWaitTime = FIFTEEN_MINUTES_MS;
 
     console.log(
@@ -234,10 +242,10 @@ setInterval(() => {
 }, 8 * 60 * 60 * 1000);
 
 // =========================================================
-// ⭐ CONFIGURAZIONE WEBHOOK (Per eliminare l'errore 409)
+// ⭐ CONFIGURAZIONE WEBHOOK (Per Render)
 // =========================================================
 const app = express();
-app.use(express.json()); // Middleware per leggere i dati JSON
+app.use(express.json());
 
 const externalUrl = process.env.RENDER_EXTERNAL_URL;
 
@@ -262,7 +270,7 @@ if (externalUrl) {
   // 3. Server per monitoraggio (Health Check)
   app.get("/", (_, res) => res.send("PokéBot attivo tramite Webhook."));
 } else {
-  // Fallback locale (questa parte non dovrebbe essere eseguita su Render)
+  // Fallback locale
   console.log("⚠️ Variabile RENDER_EXTERNAL_URL non trovata. Avvio Polling.");
   bot.startPolling();
   app.get("/", (_, res) => res.send("PokéBot attivo con Polling."));
@@ -272,25 +280,47 @@ if (externalUrl) {
 app.listen(PORT, () => console.log(`Server su porta ${PORT}`));
 
 // =========================================================
-// 🔧 COMANDI TELEGRAM DINAMICI
+// 🔧 COMANDI TELEGRAM DINAMICI (AGGIORNATI ALLA NUOVA STRUTTURA)
 // =========================================================
+
+/**
+ * Funzione helper per salvare la configurazione.
+ */
+function saveKeywordsConfig() {
+  fs.writeFileSync(
+    "keywords.json",
+    JSON.stringify({ keywords: KEYWORDS_CONFIG }, null, 2)
+  );
+}
 
 // ➕ /add keyword
 bot.onText(/\/add (.+)/, (msg, match) => {
-  const newKeyword = match[1].toLowerCase().trim();
-  if (!KEYWORDS.includes(newKeyword)) {
-    KEYWORDS.push(newKeyword);
-    fs.writeFileSync(
-      "keywords.json",
-      JSON.stringify({ keywords: KEYWORDS }, null, 2)
+  const newKeywordSearch = match[1].toLowerCase().trim();
+
+  // Genera i filtri must_contain separando la frase
+  // Ignora parole di 1 o 2 caratteri che sono spesso rumore
+  const mustContain = newKeywordSearch.split(/\s+/).filter((w) => w.length > 2);
+
+  const newConfig = {
+    search: newKeywordSearch,
+    must_contain: mustContain,
+  };
+
+  // Controlla se la keyword di ricerca è già presente
+  if (!KEYWORDS_CONFIG.some((c) => c.search === newKeywordSearch)) {
+    KEYWORDS_CONFIG.push(newConfig);
+    saveKeywordsConfig();
+    bot.sendMessage(
+      msg.chat.id,
+      `💾 Keyword aggiunta.\n**Ricerca Vinted:** *${newKeywordSearch}*\n**Filtri (Must Contain):** ${mustContain.join(
+        ", "
+      )}`,
+      { parse_mode: "Markdown" }
     );
-    bot.sendMessage(msg.chat.id, `💾 Keyword aggiunta: *${newKeyword}*`, {
-      parse_mode: "Markdown",
-    });
   } else {
     bot.sendMessage(
       msg.chat.id,
-      `⚠️ La keyword *${newKeyword}* è già presente.`,
+      `⚠️ La keyword *${newKeywordSearch}* è già presente.`,
       { parse_mode: "Markdown" }
     );
   }
@@ -298,12 +328,16 @@ bot.onText(/\/add (.+)/, (msg, match) => {
 
 // 📜 /list → mostra tutte le keyword
 bot.onText(/\/list/, (msg) => {
-  if (KEYWORDS.length === 0) {
+  if (KEYWORDS_CONFIG.length === 0) {
     bot.sendMessage(msg.chat.id, "📭 Nessuna keyword salvata.");
     return;
   }
 
-  const list = KEYWORDS.map((k) => `• ${k}`).join("\n");
+  const list = KEYWORDS_CONFIG.map(
+    (k) =>
+      `• **Ricerca:** ${k.search}\n  (Filtri: ${k.must_contain.join(", ")})`
+  ).join("\n\n");
+
   bot.sendMessage(msg.chat.id, `📜 *Lista keyword attuali:*\n\n${list}`, {
     parse_mode: "Markdown",
   });
@@ -311,22 +345,22 @@ bot.onText(/\/list/, (msg) => {
 
 // ❌ /remove keyword
 bot.onText(/\/remove (.+)/, (msg, match) => {
-  const keyword = match[1].toLowerCase().trim();
+  const keywordToRemove = match[1].toLowerCase().trim();
 
-  if (!KEYWORDS.includes(keyword)) {
+  const initialLength = KEYWORDS_CONFIG.length;
+  // Filtra l'array mantenendo solo le configurazioni la cui search non è quella da rimuovere
+  KEYWORDS_CONFIG = KEYWORDS_CONFIG.filter((k) => k.search !== keywordToRemove);
+
+  if (KEYWORDS_CONFIG.length < initialLength) {
+    saveKeywordsConfig();
+    bot.sendMessage(msg.chat.id, `🗑️ Keyword rimossa: *${keywordToRemove}*`, {
+      parse_mode: "Markdown",
+    });
+  } else {
     return bot.sendMessage(
       msg.chat.id,
-      `❌ Keyword *${keyword}* non trovata.`,
+      `❌ Keyword *${keywordToRemove}* non trovata. (Cerca per il valore di 'Ricerca Vinted')`,
       { parse_mode: "Markdown" }
     );
   }
-
-  KEYWORDS = KEYWORDS.filter((k) => k !== keyword);
-  fs.writeFileSync(
-    "keywords.json",
-    JSON.stringify({ keywords: KEYWORDS }, null, 2)
-  );
-  bot.sendMessage(msg.chat.id, `🗑️ Keyword rimossaa: *${keyword}*`, {
-    parse_mode: "Markdown",
-  });
 });
