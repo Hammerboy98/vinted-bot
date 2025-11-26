@@ -2,7 +2,7 @@ const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
 const fs = require("fs");
-require("dotenv").config();
+//require("dotenv").config();
 
 // ⭐ CONFIGURAZIONE ORA LEGGE DA .ENV (RENDER) ⭐
 const VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING;
@@ -17,7 +17,7 @@ if (
   !VINTED_CSRF_TOKEN
 ) {
   console.error(
-    "🛑 Variabili d'ambiente TOKEN, CHAT_ID, COOKIE o CSRF MANCANTI. Impossibile avviare il bot."
+    "🛑 vVariabili d'ambiente TOKEN, CHAT_ID, COOKIE o CSRF MANCANTI. Impossibile avviare il bot."
   );
 }
 
