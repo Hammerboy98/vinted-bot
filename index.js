@@ -316,7 +316,7 @@ bot.onText(/\/remove (.+)/, (msg, match) => {
     "keywords.json",
     JSON.stringify({ keywords: KEYWORDS }, null, 2)
   );
-  bot.sendMessage(msg.chat.id, `🗑️ Keyword rimossa: *${keyword}*`, {
+  bot.sendMessage(msg.chat.id, `🗑️ Keyword rimossaa: *${keyword}*`, {
     parse_mode: "Markdown",
   });
 });
