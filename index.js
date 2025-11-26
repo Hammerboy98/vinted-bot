@@ -18,7 +18,8 @@ if (
 ) {
   console.error(
     "🛑 Variabili d'ambiente TOKEN, CHAT_ID, COOKIE o CSRF MANCANTI. Impossibile avviare il bot."
-  ); // Non usiamo process.exit(1) per non bloccare Render in caso di Webhook setup
+  );
+  // Non usiamo process.exit(1) per non bloccare Render in caso di Webhook setup
 }
 
 // ⭐ NUOVA PULIZIA AGGRESSIVA CONTRO I CARATTERI INVALIDI ⭐
@@ -77,10 +78,10 @@ function randomDelay(min, max) {
 async function searchVinted(keyword) {
   const url = "https://www.vinted.it/api/v2/catalog/items";
   const params = {
-    search_text: keyword, // Aggiungiamo un filtro per l'ordine in modo da vedere gli articoli più recenti
-    order: "newest",
-  }; // Se mancano i token essenziali, saltiamo la ricerca API per evitare 401
+    search_text: keyword,
+  };
 
+  // Se mancano i token essenziali, saltiamo la ricerca API per evitare 401
   if (!cleanedCookie || !VINTED_CSRF_TOKEN) {
     console.error(
       "🛑 SALTO RICERCA API: Cookie o CSRF token non impostati o non validi."
@@ -93,14 +94,17 @@ async function searchVinted(keyword) {
       params,
       timeout: 10000,
       headers: {
-        "User-Agent": USER_AGENT, // Accept corretto per l'API JSON
+        "User-Agent": USER_AGENT,
+        // Accept corretto per l'API JSON
         Accept: "application/json, text/plain, */*",
         "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
         Referer: "https://www.vinted.it/",
-        Connection: "keep-alive", // ⭐ COOKIE CRITICO AGGIUNTO QUI (PULITO) ⭐
+        Connection: "keep-alive",
 
-        Cookie: cleanedCookie, // ⭐ NUOVI HEADER ESSENZIALI (come visti nel log 200) ⭐
+        // ⭐ COOKIE CRITICO AGGIUNTO QUI (PULITO) ⭐
+        Cookie: cleanedCookie,
 
+        // ⭐ NUOVI HEADER ESSENZIALI (come visti nel log 200) ⭐
         "X-Anon-Id": VINTED_ANON_ID,
         "X-CSRF-Token": VINTED_CSRF_TOKEN,
         "X-Money-Object": "true",
@@ -145,46 +149,47 @@ async function checkVinted() {
     }
 
     for (const item of items) {
-      // ⭐ ESTRAZIONE DATI UTILI, INCLUSO IL LINK DELL'IMMAGINE ⭐
+      // ⭐ COSTRUIAMO URL E PREZZO CORRETTAMENTE ⭐
       const articleId = item.id;
-      const link = `https://www.vinted.it/items/${articleId}`; // Vinted price è una stringa (es. "15.00"), usiamo item.price
-      const price = item.price || "N/D";
-      const imageUrl = item.photo ? item.photo.url : null; // Controllo se il link è già stato notificato
+      const link = `https://www.vinted.it/items/${articleId}`;
+      const title = item.title.toLowerCase();
 
-      if (notifiedLinks.has(link)) continue;
+      // Vinted price è una stringa, usiamo item.price
+      const price = item.price; // Esempio: "15.00"
 
-      notifiedLinks.add(link); // ⭐ COSTRUZIONE DEL MESSAGGIO E INVIO FOTO ⭐
+      // Controllo se il titolo contiene la keyword e se il link è già stato notificato
+      // Nota: la keyword non sempre è presente nel titolo, ma in questo caso la lasciamo per scremare
+      if (notifiedLinks.has(link)) continue; // || !title.includes(keyword)
 
-      const caption = `
-✨ **Nuovo Articolo Trovato!**
-🔎 Keyword: ${keyword}
+      notifiedLinks.add(link);
 
-📛 *${item.title}*
+      // ⭐ MESSAGGIO TELEGRAM CORRETTO CON PREZZO E LINK ⭐
+      const photoUrl = item.photo ? item.photo.url : null;
 
-💰 **Prezzo:** ${price} €
+      // Costruzione della didascalia con dettagli e link
+      const caption = `✨ **Nuovo Articolo Trovato!**\n🔎 Keyword: ${keyword}\n\n📛 *${item.title}*\n\n💰 **Prezzo:** ${price} €\n\n🔗 [Vedi Articolo](${link})`;
 
-🔗 [Vedi su Vinted](${link})`;
-
-      try {
-        if (imageUrl) {
-          // Invio come Foto se l'URL è disponibile
-          await bot.sendPhoto(CHAT_ID, imageUrl, {
-            caption: caption.trim(),
+      if (photoUrl) {
+        try {
+          await bot.sendPhoto(CHAT_ID, photoUrl, {
+            caption: caption,
             parse_mode: "Markdown",
+            // Si può rimuovere l'anteprima web dal link se si preferisce, ma l'immagine è già presente
           });
-        } else {
-          // Fallback a messaggio normale se l'immagine manca
-          await bot.sendMessage(CHAT_ID, caption.trim(), {
-            parse_mode: "Markdown",
-            disable_web_page_preview: false,
-          });
+          console.log("📨 Notificato con Foto:", item.title);
+        } catch (e) {
+          console.error("❌ Errore invio foto Telegram:", e.message);
+          // Fallback: se l'invio della foto fallisce, inviamo solo il messaggio di testo
+          await bot.sendMessage(CHAT_ID, caption, { parse_mode: "Markdown" });
         }
-        console.log("📨 Notificato:", item.title);
-      } catch (e) {
-        console.error("❌ Errore invio messaggio Telegram:", e.message);
+      } else {
+        // Se la foto non è disponibile, inviamo solo il messaggio di testo
+        await bot.sendMessage(CHAT_ID, caption, { parse_mode: "Markdown" });
+        console.log("📨 Notificato (solo testo):", item.title);
       }
-    } // Ritardo casuale tra 10 e 20 secondi tra una keyword e l'altra
+    }
 
+    // Ritardo casuale tra 10 e 20 secondi tra una keyword e l'altra
     const waitTime = randomDelay(10000, 20000);
     console.log(
       `⏳ Attendo ${
@@ -201,8 +206,9 @@ async function checkVinted() {
 // ⏰ LOGICA MODIFICATA: Ciclo FISSO ogni 15 minuti (900.000 ms)
 async function startVintedLoop() {
   // Esegui il controllo una volta subito
-  checkVinted(); // 15 minuti in millisecondi
+  checkVinted();
 
+  // 15 minuti in millisecondi
   const FIFTEEN_MINUTES_MS = 900000;
 
   while (true) {
@@ -210,9 +216,7 @@ async function startVintedLoop() {
     const loopWaitTime = FIFTEEN_MINUTES_MS;
 
     console.log(
-      `--- CICLO COMPLETATO. Prossimo controllo tra ${
-        loopWaitTime / 60000
-      } minuti. ---`
+      `--- CICLO COMPLETATO. Prossimo controllo tra 15.0 minuti. ---`
     );
     await delay(loopWaitTime);
 
@@ -247,17 +251,19 @@ if (externalUrl) {
     })
     .catch((err) => {
       console.error("❌ Errore impostazione Webhook:", err.message);
-    }); // 2. Endpoint per ricevere i messaggi da Telegram
+    });
 
+  // 2. Endpoint per ricevere i messaggi da Telegram
   app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
     bot.processUpdate(req.body);
     res.sendStatus(200);
-  }); // 3. Server per monitoraggio (Health Check)
+  });
 
+  // 3. Server per monitoraggio (Health Check)
   app.get("/", (_, res) => res.send("PokéBot attivo tramite Webhook."));
 } else {
   // Fallback locale (questa parte non dovrebbe essere eseguita su Render)
-  console.log("⚠️ Variabile RENDER_EXTERNAL_URL non trovata. Avvio Pollingg.");
+  console.log("⚠️ Variabile RENDER_EXTERNAL_URL non trovata. Avvio Polling.");
   bot.startPolling();
   app.get("/", (_, res) => res.send("PokéBot attivo con Polling."));
 }
