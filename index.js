@@ -257,7 +257,7 @@ if (externalUrl) {
   app.get("/", (_, res) => res.send("PokéBot attivo tramite Webhook."));
 } else {
   // Fallback locale (questa parte non dovrebbe essere eseguita su Render)
-  console.log("⚠️ Variabile RENDER_EXTERNAL_URL non trovata. Avvio Polling.");
+  console.log("⚠️ Variabile RENDER_EXTERNAL_URL non trovata. Avvio Pollingg.");
   bot.startPolling();
   app.get("/", (_, res) => res.send("PokéBot attivo con Polling."));
 }
