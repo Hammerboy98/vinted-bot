@@ -2,9 +2,8 @@ const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
 const fs = require("fs");
-// ⭐ IMPORTAZIONE CRITICA PER IL REFRESH DELLA SESSIONE ⭐
-const { chromium } = require("playwright");
-
+const puppeteer = require("puppeteer-core");
+const chromium = require("@sparticuz/chromium");
 // ⭐ CONFIGURAZIONE ORA LEGGE DA .ENV (RENDER) - USIAMO 'let' PER POTERLI AGGIORNARE ⭐
 let VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING;
 let VINTED_ANON_ID = process.env.VINTED_ANON_ID;
