@@ -2,12 +2,14 @@ const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
 const fs = require("fs");
-//require("dotenv").config();
 
-// ⭐ CONFIGURAZIONE ORA LEGGE DA .ENV (RENDER) ⭐
-const VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING;
-const VINTED_ANON_ID = process.env.VINTED_ANON_ID;
-const VINTED_CSRF_TOKEN = process.env.VINTED_CSRF_TOKEN;
+// ⭐ CONFIGURAZIONE ORA LEGGE DA .ENV (RENDER) - USIAMO 'let' PER POTERLI AGGIORNARE ⭐
+let VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING;
+let VINTED_ANON_ID = process.env.VINTED_ANON_ID;
+let VINTED_CSRF_TOKEN = process.env.VINTED_CSRF_TOKEN;
+
+// Variabile del cookie pulito, anch'essa variabile
+let cleanedCookie = VINTED_COOKIE_STRING;
 
 // ⭐ CONTROLLO ESSENZIALE ALL'AVVIO ⭐
 if (
@@ -17,14 +19,12 @@ if (
   !VINTED_CSRF_TOKEN
 ) {
   console.error(
-    "🛑 vVariabili d'ambiente TOKEN, CHAT_ID, COOKIE o CSRF MANCANTI. Impossibile avviare il bot."
+    "🛑 Variabili d'ambiente TOKEN, CHAT_ID, COOKIE o CSRF MANCANTI. Impossibile avviare il bot."
   );
 }
 
-// ⭐ NUOVA PULIZIA AGGRESSIVA CONTRO I CARATTERI INVALIDI ⭐
-let cleanedCookie = VINTED_COOKIE_STRING;
+// ⭐ PULIZIA AGGRESSIVA (APPLICATA SOLO AL VALORE INIZIALE) ⭐
 if (cleanedCookie) {
-  // 1. Rimuove caratteri non validi: Mantiene solo lettere, numeri, _, -, =, :, ;, / e punti
   cleanedCookie = cleanedCookie
     .replace(/[^a-zA-Z0-9_\-=:,;\/.\s]/g, "")
     .replace(/[\n\r]/g, "")
@@ -44,7 +44,6 @@ let KEYWORDS_CONFIG = [];
 try {
   const data = fs.readFileSync("keywords.json", "utf8");
   const json = JSON.parse(data);
-  // La struttura json.keywords dovrebbe essere: [{search: "...", must_contain: [...]}, ...]
   KEYWORDS_CONFIG = json.keywords || [];
 } catch (err) {
   console.log(
@@ -76,12 +75,64 @@ function randomDelay(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-// 🛡️ FUNZIONE API CON HEADERS E COOKIE AGGIORNATI
+// --- FUNZIONE DI REFRESH DELLA SESSIONE ---
+async function refreshVintedSession() {
+  console.log("🔄 Tentativo di refresh della sessione Vinted...");
+
+  try {
+    // Tenta una GET alla homepage. Il nuovo cookie è spesso nell'header set-cookie
+    const res = await axios.get("https://www.vinted.it/", {
+      timeout: 10000,
+      headers: {
+        "User-Agent": USER_AGENT,
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+      },
+      // Importante: disabilitare il reindirizzamento per catturare il primo set-cookie
+      maxRedirects: 0,
+      validateStatus: (status) => status >= 200 && status < 400, // Non lanciare errore su 30x
+    });
+
+    const setCookieHeader = res.headers["set-cookie"];
+
+    if (setCookieHeader && setCookieHeader.length > 0) {
+      // Cerca il cookie di sessione
+      const newVintedSessionCookie = setCookieHeader.find((cookie) =>
+        cookie.includes("_vinted_fr_session")
+      );
+
+      if (newVintedSessionCookie) {
+        // Estrai solo il nome e il valore
+        const newCookieValue = newVintedSessionCookie.split(";")[0];
+
+        // Aggiorna le variabili globali
+        VINTED_COOKIE_STRING = newCookieValue;
+        cleanedCookie = newCookieValue;
+
+        console.log(
+          "✅ Sessione Vinted aggiornata con successo! Nuovo cookie:",
+          newCookieValue
+        );
+        return true;
+      }
+    }
+    console.warn(
+      "⚠️ Refresh fallito: Nessun nuovo cookie di sessione trovato negli header di risposta."
+    );
+    return false;
+  } catch (err) {
+    console.error(
+      "❌ Errore critico durante il tentativo di refresh (API):",
+      err.message
+    );
+    return false;
+  }
+}
+
+// 🛡️ FUNZIONE API CON HEADERS E COOKIE AGGIORNATI (MODIFICATA PER IL RETRY)
 async function searchVinted(keyword) {
   const url = "https://www.vinted.it/api/v2/catalog/items";
   const params = {
     search_text: keyword,
-    // Possibile aggiungere filtri qui per categoria/condizione se necessario, ma partiamo dal testo
   };
 
   if (!cleanedCookie || !VINTED_CSRF_TOKEN) {
@@ -91,45 +142,68 @@ async function searchVinted(keyword) {
     return [];
   }
 
-  try {
-    const res = await axios.get(url, {
-      params,
-      timeout: 10000,
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "application/json, text/plain, */*",
-        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-        Referer: "https://www.vinted.it/",
-        Connection: "keep-alive",
+  // --- Ciclo di Riprova in caso di 401 (Max 2 tentativi) ---
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await axios.get(url, {
+        params,
+        timeout: 10000,
+        headers: {
+          "User-Agent": USER_AGENT,
+          Accept: "application/json, text/plain, */*",
+          "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+          Referer: "https://www.vinted.it/",
+          Connection: "keep-alive",
 
-        // ⭐ COOKIE CRITICO AGGIUNTO QUI (PULITO) ⭐
-        Cookie: cleanedCookie,
+          // ⭐ USA IL COOKIE AGGIORNATO QUI ⭐
+          Cookie: cleanedCookie,
 
-        "X-Anon-Id": VINTED_ANON_ID,
-        "X-CSRF-Token": VINTED_CSRF_TOKEN,
-        "X-Money-Object": "true",
-      },
-    });
+          "X-Anon-Id": VINTED_ANON_ID,
+          "X-CSRF-Token": VINTED_CSRF_TOKEN,
+          "X-Money-Object": "true",
+        },
+      });
 
-    return res.data.items || [];
-  } catch (err) {
-    if (err.response) {
-      console.error(
-        `❌ Errore ${err.response.status} durante la ricerca API per "${keyword}"`
-      );
-      if (err.response.status === 401) {
+      // Ritorna i risultati se la chiamata ha successo
+      return res.data.items || [];
+    } catch (err) {
+      if (err.response) {
         console.error(
-          `🛑 BLOCCO 401 RILEVATO. **Il Cookie di sessione/CSRF è scaduto o non valido**.`
+          `❌ Errore ${err.response.status} durante la ricerca API per "${keyword}" (Tentativo ${attempt})`
+        );
+        if (err.response.status === 401) {
+          console.error(
+            `🛑 BLOCCO 401 RILEVATO. Cookie/CSRF scaduto. Avvio refresh...`
+          );
+
+          if (attempt === 1) {
+            const refreshSuccess = await refreshVintedSession();
+            if (refreshSuccess) {
+              console.log(
+                `✨ Refresh OK. Riprovo la ricerca per "${keyword}".`
+              );
+              continue; // Passa al tentativo 2 con il nuovo cookie
+            } else {
+              console.error(`🔴 Refresh fallito. Uscita.`);
+              return [];
+            }
+          } else {
+            // Se fallisce anche al secondo tentativo (dopo il refresh)
+            console.error(`🔴 Fallimento persistente 401 dopo il refresh.`);
+            return [];
+          }
+        }
+      } else {
+        console.error(
+          `❌ Errore durante la ricerca API "${keyword}" (Tentativo ${attempt}):`,
+          err.message
         );
       }
-    } else {
-      console.error(
-        `❌ Errore durante la ricerca API "${keyword}":`,
-        err.message
-      );
+      // Per qualsiasi altro errore (es. timeout o altro errore), esci
+      return [];
     }
-    return [];
   }
+  return []; // Fallback finale
 }
 
 // === FUNZIONE PRINCIPALE DI CONTROLLO CON FILTRO AGGRESSIVO ===
@@ -151,7 +225,7 @@ async function checkVinted() {
       console.log(`✅ Trovati 0 articoli per "${keyword}"`);
     }
 
-    // ⭐ NUOVO: CICLO DI FILTRAGGIO AGGRESSIVO ⭐
+    // ⭐ CICLO DI FILTRAGGIO AGGRESSIVO ⭐
     for (const item of items) {
       const articleId = item.id;
       const link = `https://www.vinted.it/items/${articleId}`;
@@ -335,7 +409,7 @@ bot.onText(/\/list/, (msg) => {
 
   const list = KEYWORDS_CONFIG.map(
     (k) =>
-      `• **Ricerca:** ${k.search}\n  (Filtri: ${k.must_contain.join(", ")})`
+      `• **Ricerca:** ${k.search}\n  (Filtri: ${k.must_contain.join(", ")})`
   ).join("\n\n");
 
   bot.sendMessage(msg.chat.id, `📜 *Lista keyword attuali:*\n\n${list}`, {
