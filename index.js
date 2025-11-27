@@ -2,6 +2,8 @@ const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
 const fs = require("fs");
+// ⭐ IMPORTAZIONE CRITICA PER IL REFRESH DELLA SESSIONE ⭐
+const { chromium } = require("playwright");
 
 // ⭐ CONFIGURAZIONE ORA LEGGE DA .ENV (RENDER) - USIAMO 'let' PER POTERLI AGGIORNARE ⭐
 let VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING;
@@ -75,56 +77,81 @@ function randomDelay(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-// --- FUNZIONE DI REFRESH DELLA SESSIONE ---
+// 🔁 NUOVA FUNZIONE PER AGGIORNARE I COOKIE USANDO PLAYWRIGHT (SOLUZIONE HEADLESS)
 async function refreshVintedSession() {
-  console.log("🔄 Tentativo di refresh della sessione Vinted...");
+  console.log(
+    "🔄 Avvio Playwright: Tentativo di refresh della sessione Vinted tramite browser headless..."
+  );
 
+  let browser;
   try {
-    // Tenta una GET alla homepage. Il nuovo cookie è spesso nell'header set-cookie
-    const res = await axios.get("https://www.vinted.it/", {
-      timeout: 10000,
-      headers: {
-        "User-Agent": USER_AGENT,
-        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-      },
-      // Importante: disabilitare il reindirizzamento per catturare il primo set-cookie
-      maxRedirects: 0,
-      validateStatus: (status) => status >= 200 && status < 400, // Non lanciare errore su 30x
+    // Avvia il browser Chromium headless
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ userAgent: USER_AGENT });
+    const page = await context.newPage();
+
+    console.log(
+      "...Navigazione su Vinted e attesa del superamento di Cloudflare..."
+    );
+
+    await page.goto("https://www.vinted.it/", {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
     });
 
-    const setCookieHeader = res.headers["set-cookie"];
+    // Attendi che la pagina sia completamente stabile
+    await page.waitForSelector("body", { state: "attached", timeout: 15000 });
 
-    if (setCookieHeader && setCookieHeader.length > 0) {
-      // Cerca il cookie di sessione
-      const newVintedSessionCookie = setCookieHeader.find((cookie) =>
-        cookie.includes("_vinted_fr_session")
-      );
+    console.log("...Cattura dei cookie aggiornati...");
 
-      if (newVintedSessionCookie) {
-        // Estrai solo il nome e il valore
-        const newCookieValue = newVintedSessionCookie.split(";")[0];
+    const currentCookies = await context.cookies();
 
-        // Aggiorna le variabili globali
-        VINTED_COOKIE_STRING = newCookieValue;
-        cleanedCookie = newCookieValue;
+    let newSessionCookieFound = false;
 
-        console.log(
-          "✅ Sessione Vinted aggiornata con successo! Nuovo cookie:",
-          newCookieValue
-        );
-        return true;
+    const cookieParts = [];
+    let newAnonId = null;
+
+    for (const cookie of currentCookies) {
+      cookieParts.push(`${cookie.name}=${cookie.value}`);
+
+      if (cookie.name === "_vinted_fr_session") {
+        newSessionCookieFound = true;
+      }
+      if (cookie.name === "anon_id") {
+        newAnonId = cookie.value;
       }
     }
+
+    if (newSessionCookieFound) {
+      // Aggiorna tutte le variabili globali con i nuovi valori
+      VINTED_COOKIE_STRING = cookieParts.join("; ");
+      cleanedCookie = VINTED_COOKIE_STRING;
+
+      if (newAnonId) VINTED_ANON_ID = newAnonId;
+
+      console.log(
+        "✅ Sessione Vinted aggiornata con successo! (Include sessione e cf_clearance)"
+      );
+      console.log(
+        `🔍 Nuova Cookie String: ${VINTED_COOKIE_STRING.substring(0, 100)}...`
+      );
+      return true;
+    }
+
     console.warn(
-      "⚠️ Refresh fallito: Nessun nuovo cookie di sessione trovato negli header di risposta."
+      "⚠️ Refresh fallito: Il cookie di sessione Vinted critico non è stato trovato dopo la navigazione."
     );
     return false;
   } catch (err) {
     console.error(
-      "❌ Errore critico durante il tentativo di refresh (API):",
+      "❌ Errore critico durante il refresh con Playwright:",
       err.message
     );
     return false;
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 }
 
@@ -177,6 +204,7 @@ async function searchVinted(keyword) {
           );
 
           if (attempt === 1) {
+            // Esegui il refresh con Playwright
             const refreshSuccess = await refreshVintedSession();
             if (refreshSuccess) {
               console.log(
@@ -248,11 +276,17 @@ async function checkVinted() {
 
       notifiedLinks.add(link);
 
-      // ⭐ MESSAGGIO TELEGRAM CORRETTO CON PREZZO E LINK ⭐
-      const price = item.price;
+      // ⭐ MODIFICA QUI: Estrazione corretta del prezzo e formattazione ⭐
+      const itemPrice = item.price;
+      const priceDisplay =
+        itemPrice && itemPrice.amount
+          ? `${itemPrice.amount} ${itemPrice.currency || "€"}`
+          : "Prezzo Sconosciuto";
+
       const photoUrl = item.photo ? item.photo.url : null;
 
-      const caption = `✨ **Nuovo Articolo Trovato!**\n🔎 Keyword di Ricerca: ${keyword}\n\n📛 *${item.title}*\n\n💰 **Prezzo:** ${price} €\n\n🔗 [Vedi Articolo](${link})`;
+      // ⭐ UTILIZZO DELLA VARIABILE priceDisplay NELLA CAPTION ⭐
+      const caption = `✨ **Nuovo Articolo Trovato!**\n🔎 Keyword di Ricerca: ${keyword}\n\n📛 *${item.title}*\n\n💰 **Prezzo:** ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
 
       if (photoUrl) {
         try {
@@ -354,7 +388,7 @@ if (externalUrl) {
 app.listen(PORT, () => console.log(`Server su porta ${PORT}`));
 
 // =========================================================
-// 🔧 COMANDI TELEGRAM DINAMICI (AGGIORNATI ALLA NUOVA STRUTTURA)
+// 🔧 COMANDI TELEGRAM DINAMICI
 // =========================================================
 
 /**
@@ -372,7 +406,6 @@ bot.onText(/\/add (.+)/, (msg, match) => {
   const newKeywordSearch = match[1].toLowerCase().trim();
 
   // Genera i filtri must_contain separando la frase
-  // Ignora parole di 1 o 2 caratteri che sono spesso rumore
   const mustContain = newKeywordSearch.split(/\s+/).filter((w) => w.length > 2);
 
   const newConfig = {
