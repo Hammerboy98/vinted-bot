@@ -258,85 +258,109 @@ async function checkVinted() {
 
   console.log("🔍 Controllo Vinted…");
 
-  // Itera sulla configurazione delle keyword (che ora sono oggetti)
-  for (let config of KEYWORDS_CONFIG) {
-    const keyword = config.search;
-    // mustContain: Array di parole chiave che DEVONO essere presenti nel risultato (logica AND)
-    const mustContain = config.must_contain || [];
+  try {
+    // ⭐ INIZIO BLOCCO TRY/CATCH PER MONITORAGGIO CICLO ⭐
+    // Itera sulla configurazione delle keyword (che ora sono oggetti)
+    for (let config of KEYWORDS_CONFIG) {
+      const keyword = config.search;
+      // mustContain: Array di parole chiave che DEVONO essere presenti nel risultato (logica AND)
+      const mustContain = config.must_contain || [];
 
-    const items = await searchVinted(keyword);
+      const items = await searchVinted(keyword);
 
-    if (items.length === 0) {
-      console.log(`✅ Trovati 0 articoli per "${keyword}"`);
-    }
-
-    // ⭐ CICLO DI FILTRAGGIO AGGRESSIVO ⭐
-    for (const item of items) {
-      const articleId = item.id;
-      const link = `https://www.vinted.it/items/${articleId}`;
-
-      // Combiniamo titolo e descrizione in minuscolo per la verifica
-      const searchContent = `${item.title} ${item.description}`.toLowerCase();
-
-      // Controllo di coerenza: l'articolo DEVE contenere TUTTE le parole in 'mustContain'
-      const isRelevant = mustContain.every((word) =>
-        searchContent.includes(word)
-      );
-
-      if (!isRelevant) {
-        // Articolo non pertinente (manca una delle parole chiave essenziali filtrate)
-        continue;
+      if (items.length === 0) {
+        console.log(`✅ Trovati 0 articoli per "${keyword}"`);
       }
 
-      // Controllo anti-duplicato
-      if (notifiedLinks.has(link)) continue;
+      // ⭐ CICLO DI FILTRAGGIO AGGRESSIVO ⭐
+      for (const item of items) {
+        const articleId = item.id;
+        const link = `https://www.vinted.it/items/${articleId}`;
 
-      notifiedLinks.add(link);
+        // Combiniamo titolo e descrizione in minuscolo per la verifica
+        const searchContent = `${item.title} ${item.description}`.toLowerCase();
 
-      // ⭐ CORREZIONE DEL PREZZO: Estrazione corretta dell'amount e formattazione ⭐
-      const itemPrice = item.price;
-      const priceDisplay =
-        itemPrice && itemPrice.amount
-          ? `${itemPrice.amount} ${itemPrice.currency || "€"}`
-          : "Prezzo Sconosciuto";
+        // Controllo di coerenza: l'articolo DEVE contenere TUTTE le parole in 'mustContain'
+        const isRelevant = mustContain.every((word) =>
+          searchContent.includes(word)
+        );
 
-      const photoUrl = item.photo ? item.photo.url : null;
-
-      // ⭐ UTILIZZO DELLA VARIABILE priceDisplay NELLA CAPTION ⭐
-      const caption = `✨ **Nuovo Articolo Trovato!**\n🔎 Keyword di Ricerca: ${keyword}\n\n📛 *${item.title}*\n\n💰 **Prezzo:** ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
-
-      if (photoUrl) {
-        try {
-          await bot.sendPhoto(CHAT_ID, photoUrl, {
-            caption: caption,
-            parse_mode: "Markdown",
-          });
-          console.log("📨 Notificato con Foto:", item.title);
-        } catch (e) {
-          console.error("❌ Errore invio foto Telegram:", e.message);
-          // Fallback
-          await bot.sendMessage(CHAT_ID, caption, { parse_mode: "Markdown" });
+        if (!isRelevant) {
+          // Articolo non pertinente (manca una delle parole chiave essenziali filtrate)
+          continue;
         }
-      } else {
-        // Se la foto non è disponibile
-        await bot.sendMessage(CHAT_ID, caption, { parse_mode: "Markdown" });
-        console.log("📨 Notificato (solo testo):", item.title);
-      }
-    } // fine for (item)
 
-    // Ritardo casuale tra una keyword e l'altra
-    const waitTime = randomDelay(10000, 20000);
-    console.log(
-      `⏳ Attendo ${
-        waitTime / 1000
-      } secondi prima di cercare la prossima keyword...`
+        // Controllo anti-duplicato
+        if (notifiedLinks.has(link)) continue;
+
+        notifiedLinks.add(link);
+
+        // ⭐ CORREZIONE DEL PREZZO: Estrazione corretta dell'amount e formattazione ⭐
+        const itemPrice = item.price;
+        const priceDisplay =
+          itemPrice && itemPrice.amount
+            ? `${itemPrice.amount} ${itemPrice.currency || "€"}`
+            : "Prezzo Sconosciuto";
+
+        const photoUrl = item.photo ? item.photo.url : null;
+
+        // ⭐ UTILIZZO DELLA VARIABILE priceDisplay NELLA CAPTION ⭐
+        const caption = `✨ **Nuovo Articolo Trovato!**\n🔎 Keyword di Ricerca: ${keyword}\n\n📛 *${item.title}*\n\n💰 **Prezzo:** ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
+
+        if (photoUrl) {
+          try {
+            await bot.sendPhoto(CHAT_ID, photoUrl, {
+              caption: caption,
+              parse_mode: "Markdown",
+            });
+            console.log("📨 Notificato con Foto:", item.title);
+          } catch (e) {
+            console.error("❌ Errore invio foto Telegram:", e.message);
+            // Fallback
+            await bot.sendMessage(CHAT_ID, caption, { parse_mode: "Markdown" });
+          }
+        } else {
+          // Se la foto non è disponibile
+          await bot.sendMessage(CHAT_ID, caption, { parse_mode: "Markdown" });
+          console.log("📨 Notificato (solo testo):", item.title);
+        }
+      } // fine for (item)
+
+      // Ritardo casuale tra una keyword e l'altra
+      const waitTime = randomDelay(10000, 20000);
+      console.log(
+        `⏳ Attendo ${
+          waitTime / 1000
+        } secondi prima di cercare la prossima keyword...`
+      );
+      await delay(waitTime);
+    } // fine for (config)
+
+    console.log("✅ Ciclo di controllo Vinted completato.");
+  } catch (err) {
+    console.error(
+      "❌ ERRORE CRITICO E NON GESTITO NEL CICLO DI CONTROLLO:",
+      err.message
     );
-    await delay(waitTime);
-  } // fine for (config)
 
-  isRunning = false;
-  console.log("✅ Ciclo di controllo Vinted completato.");
-}
+    // ⭐ AZIONE CHIAVE: Invia un avviso di errore critico su Telegram ⭐
+    await bot
+      .sendMessage(
+        CHAT_ID,
+        `🚨 **ERRORE CRITICO!** Il ciclo di controllo Vinted è fallito a causa di un errore imprevisto.\n\nControlla i log di Render e riavvia il servizio.\n\nDettagli: \`${err.message}\``,
+        { parse_mode: "Markdown" }
+      )
+      .catch((e) =>
+        console.error(
+          "❌ Errore invio allerta Telegram (Errore su errore):",
+          e.message
+        )
+      );
+  } finally {
+    // ESSENZIALE: Resetta lo stato di esecuzione per permettere il prossimo ciclo schedulato.
+    isRunning = false;
+  }
+} // ⭐ FINE checkVinted MODIFICATA ⭐
 
 // ⏰ LOGICA MODIFICATA: Ciclo FISSO ogni 15 minuti (900.000 ms)
 async function startVintedLoop() {
@@ -359,6 +383,15 @@ async function startVintedLoop() {
 
 // Avvia il ciclo principale
 startVintedLoop();
+
+// ⭐ MESSAGGIO DI CONFERMA ALL'AVVIO ⭐
+bot
+  .sendMessage(CHAT_ID, "🤖 **PokéBot Vinted Avviato!** Ricerca in corso...", {
+    parse_mode: "Markdown",
+  })
+  .catch((err) =>
+    console.error("❌ Errore invio messaggio di avvio:", err.message)
+  );
 
 // === PULIZIA DUPLICATI OGNI 8 ORE ===
 setInterval(() => {
