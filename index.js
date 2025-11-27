@@ -2,8 +2,10 @@ const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
 const fs = require("fs");
+// ⭐ IMPORTAZIONI CORRETTE PER AMBIENTI CLOUD (PUPPETEER CORE) ⭐
 const puppeteer = require("puppeteer-core");
 const chromium = require("@sparticuz/chromium");
+
 // ⭐ CONFIGURAZIONE ORA LEGGE DA .ENV (RENDER) - USIAMO 'let' PER POTERLI AGGIORNARE ⭐
 let VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING;
 let VINTED_ANON_ID = process.env.VINTED_ANON_ID;
@@ -76,18 +78,33 @@ function randomDelay(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-// 🔁 NUOVA FUNZIONE PER AGGIORNARE I COOKIE USANDO PLAYWRIGHT (SOLUZIONE HEADLESS)
+// 🔁 FUNZIONE PER AGGIORNARE I COOKIE USANDO PUPPETEER CORE (CORRETTA)
 async function refreshVintedSession() {
   console.log(
-    "🔄 Avvio Playwright: Tentativo di refresh della sessione Vinted tramite browser headless..."
+    "🔄 Avvio Puppeteer: Tentativo di refresh della sessione Vinted tramite browser headless..."
   );
 
   let browser;
   try {
-    // Avvia il browser Chromium headless
-    browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({ userAgent: USER_AGENT });
-    const page = await context.newPage();
+    // Usa le impostazioni Chromium ottimizzate per ambienti serverless/container
+    const executablePath = await chromium.executablePath();
+
+    // ⭐ CHIAMATA CORRETTA: usa puppeteer.launch ⭐
+    browser = await puppeteer.launch({
+      // Argomenti necessari per l'ambiente Render/container
+      args: [
+        ...chromium.args,
+        "--disable-features=site-isolation-for-navigation",
+        "--disable-setuid-sandbox",
+      ],
+      defaultViewport: chromium.defaultViewport,
+      executablePath,
+      headless: chromium.headless,
+    });
+
+    const page = await browser.newPage();
+
+    await page.setUserAgent(USER_AGENT);
 
     console.log(
       "...Navigazione su Vinted e attesa del superamento di Cloudflare..."
@@ -103,7 +120,8 @@ async function refreshVintedSession() {
 
     console.log("...Cattura dei cookie aggiornati...");
 
-    const currentCookies = await context.cookies();
+    // Cattura tutti i cookie attuali dalla pagina (Sintassi Puppeteer)
+    const currentCookies = await page.cookies();
 
     let newSessionCookieFound = false;
 
@@ -129,7 +147,7 @@ async function refreshVintedSession() {
       if (newAnonId) VINTED_ANON_ID = newAnonId;
 
       console.log(
-        "✅ Sessione Vinted aggiornata con successo! (Include sessione e cf_clearance)"
+        "✅ Sessione Vinted aggiornata con successo! (Usando Puppeteer Core)"
       );
       console.log(
         `🔍 Nuova Cookie String: ${VINTED_COOKIE_STRING.substring(0, 100)}...`
@@ -143,7 +161,7 @@ async function refreshVintedSession() {
     return false;
   } catch (err) {
     console.error(
-      "❌ Errore critico durante il refresh con Playwright:",
+      "❌ Errore critico durante il refresh con Puppeteer:",
       err.message
     );
     return false;
@@ -203,7 +221,7 @@ async function searchVinted(keyword) {
           );
 
           if (attempt === 1) {
-            // Esegui il refresh con Playwright
+            // Esegui il refresh con Puppeteer
             const refreshSuccess = await refreshVintedSession();
             if (refreshSuccess) {
               console.log(
@@ -275,7 +293,7 @@ async function checkVinted() {
 
       notifiedLinks.add(link);
 
-      // ⭐ MODIFICA QUI: Estrazione corretta del prezzo e formattazione ⭐
+      // ⭐ CORREZIONE DEL PREZZO: Estrazione corretta dell'amount e formattazione ⭐
       const itemPrice = item.price;
       const priceDisplay =
         itemPrice && itemPrice.amount
