@@ -78,7 +78,7 @@ function randomDelay(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-// 🔁 FUNZIONE PER AGGIORNARE I COOKIE USANDO PUPPETEER CORE (CORRETTA)
+// 🔁 FUNZIONE PER AGGIORNARE I COOKIE USANDO PUPPETEER CORE (TIMEOUT AUMENTATO A 30S)
 async function refreshVintedSession() {
   console.log(
     "🔄 Avvio Puppeteer: Tentativo di refresh della sessione Vinted tramite browser headless..."
@@ -86,10 +86,8 @@ async function refreshVintedSession() {
 
   let browser;
   try {
-    // Usa le impostazioni Chromium ottimizzate per ambienti serverless/container
     const executablePath = await chromium.executablePath();
 
-    // ⭐ CHIAMATA CORRETTA: usa puppeteer.launch ⭐
     browser = await puppeteer.launch({
       // Argomenti necessari per l'ambiente Render/container
       args: [
@@ -115,12 +113,11 @@ async function refreshVintedSession() {
       timeout: 30000,
     });
 
-    // Attendi che la pagina sia completamente stabile
-    await page.waitForSelector("body", { state: "attached", timeout: 15000 });
+    // ⭐ MODIFICA CHIAVE: Aumento il timeout di attesa del selettore 'body' a 30s ⭐
+    await page.waitForSelector("body", { state: "attached", timeout: 30000 });
 
     console.log("...Cattura dei cookie aggiornati...");
 
-    // Cattura tutti i cookie attuali dalla pagina (Sintassi Puppeteer)
     const currentCookies = await page.cookies();
 
     let newSessionCookieFound = false;
@@ -160,10 +157,17 @@ async function refreshVintedSession() {
     );
     return false;
   } catch (err) {
-    console.error(
-      "❌ Errore critico durante il refresh con Puppeteer:",
-      err.message
-    );
+    // Log più specifico per il timeout o blocco Cloudflare
+    if (err.message && err.message.includes("Waiting for selector")) {
+      console.error(
+        `❌ Errore critico durante il refresh con Puppeteer: Cloudflare ha bloccato il browser o la pagina è troppo lenta. Dettaglio: ${err.message}`
+      );
+    } else {
+      console.error(
+        "❌ Errore critico durante il refresh con Puppeteer:",
+        err.message
+      );
+    }
     return false;
   } finally {
     if (browser) {
@@ -360,7 +364,7 @@ async function checkVinted() {
     // ESSENZIALE: Resetta lo stato di esecuzione per permettere il prossimo ciclo schedulato.
     isRunning = false;
   }
-} // ⭐ FINE checkVinted MODIFICATA ⭐
+}
 
 // ⏰ LOGICA MODIFICATA: Ciclo FISSO ogni 15 minuti (900.000 ms)
 async function startVintedLoop() {
@@ -492,7 +496,7 @@ bot.onText(/\/list/, (msg) => {
 
   const list = KEYWORDS_CONFIG.map(
     (k) =>
-      `• **Ricerca:** ${k.search}\n  (Filtri: ${k.must_contain.join(", ")})`
+      `• **Ricerca:** ${k.search}\n  (Filtri: ${k.must_contain.join(", ")})`
   ).join("\n\n");
 
   bot.sendMessage(msg.chat.id, `📜 *Lista keyword attuali:*\n\n${list}`, {
