@@ -18,7 +18,7 @@
     "node-telegram-bot-api": "^0.63.0",
     "proxy-from-env": "^1.1.0",
     "puppeteer-core": "^22.10.0",
-    "@sparticuz/chromium": "^125.0.1"
+    "@sparticuz/chromium": "^126.0.0"
   },
   "engines": {
     "node": ">=22.0.0"
