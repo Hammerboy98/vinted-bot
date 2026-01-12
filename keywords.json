@@ -1,8 +1,20 @@
 {
   "keywords": [
     {
+      "search": "Pokemon Gold Star",
+      "must_contain": ["pokemon", "gold", "star"]
+    },
+    {
       "search": "Pokemon Gold Star Rayquaza",
       "must_contain": ["pokemon", "gold", "star", "rayquaza"]
+    },
+    {
+      "search": "Pokemon Shining",
+      "must_contain": ["pokemon", "shining"]
+    },
+    {
+      "search": "Pokemon Crystal",
+      "must_contain": ["pokemon", "crystal"]
     },
     {
       "search": "Pokemon Gold Star Latios",
@@ -25,28 +37,8 @@
       "must_contain": ["pokemon", "gold", "star", "treecko"]
     },
     {
-      "search": "Pokemon Skyridge Charizard",
-      "must_contain": ["pokemon", "skyridge", "charizard"]
-    },
-    {
-      "search": "Pokemon Aquapolis Lugia",
-      "must_contain": ["pokemon", "aquapolis", "lugia"]
-    },
-    {
-      "search": "Pokemon Expedition Charizard",
-      "must_contain": ["pokemon", "expedition", "charizard"]
-    },
-    {
-      "search": "Pokemon CoroCoro Mew",
-      "must_contain": ["pokemon", "corocoro", "mew"]
-    },
-    {
-      "search": "Pokemon PSA 10",
-      "must_contain": ["pokemon", "psa", "10"]
-    },
-    {
-      "search": "Pokemon BGS 10",
-      "must_contain": ["pokemon", "bgs", "10"]
+      "search": "Pokemon Neo Destiny",
+      "must_contain": ["pokemon", "neo", "destiny"]
     }
   ]
 }
