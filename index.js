@@ -56,6 +56,7 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 
 let notifiedLinks = new Set();
 let isRunning = false;
+let refreshPromise = null; // Mutex: evita lanci paralleli di Puppeteer
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -67,8 +68,21 @@ function randomDelay(min, max) {
 
 // ============================================================
 // REFRESH SESSIONE — Puppeteer + Stealth (bypassa Cloudflare)
+// Mutex: se un refresh è già in corso, aspetta quello invece di
+// aprire un secondo browser (risparmia memoria su Render free).
 // ============================================================
-async function refreshVintedSession() {
+function refreshVintedSession() {
+  if (refreshPromise) {
+    console.log("⏳ Refresh già in corso, attendo il risultato...");
+    return refreshPromise;
+  }
+  refreshPromise = _execRefresh().finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
+async function _execRefresh() {
   console.log("🔄 Refresh sessione Vinted con Puppeteer stealth...");
   let browser;
   try {
@@ -92,19 +106,31 @@ async function refreshVintedSession() {
       "Accept-Encoding": "gzip, deflate, br",
     });
 
-    console.log("...Navigazione su Vinted (networkidle2)...");
-    await page.goto("https://www.vinted.it/", {
-      waitUntil: "networkidle2",
-      timeout: 60000,
+    // Blocca immagini/CSS/font: riduce memoria e velocizza il caricamento
+    await page.setRequestInterception(true);
+    page.on("request", (req) => {
+      if (["image", "stylesheet", "font", "media"].includes(req.resourceType())) {
+        req.abort();
+      } else {
+        req.continue();
+      }
     });
 
-    // Verifica che Vinted sia carico (non la challenge Cloudflare)
+    console.log("...Navigazione su Vinted (domcontentloaded)...");
+    // domcontentloaded invece di networkidle2: Vinted ha connessioni persistenti
+    // che impediscono a networkidle2 di risolversi entro 60s
+    await page.goto("https://www.vinted.it/", {
+      waitUntil: "domcontentloaded",
+      timeout: 45000,
+    });
+
+    // Attendi che Cloudflare completi l'eventuale challenge
     try {
       await page.waitForSelector('[data-testid="header--logo"]', { timeout: 15000 });
-      console.log("✅ Pagina Vinted caricata correttamente.");
+      console.log("✅ Pagina Vinted caricata.");
     } catch {
-      console.warn("⚠️ Logo Vinted non trovato, possibile challenge Cloudflare attiva. Attendo 5s...");
-      await delay(5000);
+      console.warn("⚠️ Logo non trovato, attendo 8s per eventuale CF challenge...");
+      await delay(8000);
     }
 
     // Estrai CSRF token dal meta tag (Rails standard)
@@ -127,17 +153,17 @@ async function refreshVintedSession() {
     }
 
     if (sessionFound) {
-      VINTED_COOKIE_STRING = cookieParts.join("; ");
-      if (newAnonId) VINTED_ANON_ID = newAnonId;
+      VINTED_COOKIE_STRING = cookieParts.join("; ").replace(/[^\x20-\x7E]/g, "").trim();
+      if (newAnonId) VINTED_ANON_ID = newAnonId.replace(/[^\x20-\x7E]/g, "").trim();
       if (newCsrfToken) {
-        VINTED_CSRF_TOKEN = newCsrfToken;
-        console.log("🔐 CSRF token aggiornato dal meta tag.");
+        VINTED_CSRF_TOKEN = newCsrfToken.replace(/[^\x20-\x7E]/g, "").trim();
+        console.log("🔐 CSRF token aggiornato.");
       }
       console.log(`✅ Sessione aggiornata! Cookie: ${VINTED_COOKIE_STRING.substring(0, 80)}...`);
       return true;
     }
 
-    console.warn("⚠️ Cookie _vinted_fr_session non trovato. Cloudflare potrebbe aver bloccato il browser.");
+    console.warn("⚠️ Cookie _vinted_fr_session non trovato. Cloudflare potrebbe aver bloccato.");
     return false;
   } catch (err) {
     console.error("❌ Errore refresh Puppeteer:", err.message);
