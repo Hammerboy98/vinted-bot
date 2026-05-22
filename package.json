@@ -1,24 +1,24 @@
 {
   "name": "vinted-pokemon-bot",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node --max-old-space-size=512 index.js",
+    "start": "node --max-old-space-size=256 index.js",
     "build": "npm install"
   },
   "dependencies": {
+    "@sparticuz/chromium": "^131.0.0",
     "array.prototype.findindex": "^2.2.4",
     "axios": "^1.13.2",
     "bl": "^6.1.4",
-    "cheerio": "^1.1.2",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
-    "file-type": "^21.1.1",
     "node-telegram-bot-api": "^0.63.0",
     "proxy-from-env": "^1.1.0",
-    "puppeteer-core": "^22.10.0",
-    "@sparticuz/chromium": "^126.0.0"
+    "puppeteer-core": "^22.0.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "engines": {
     "node": ">=22.0.0"

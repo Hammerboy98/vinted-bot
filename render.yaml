@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: vinted-pokemon-bot
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Imposta queste variabili manualmente nel dashboard Render:
+      # TELEGRAM_TOKEN, CHAT_ID, VINTED_COOKIE_STRING, VINTED_ANON_ID, VINTED_CSRF_TOKEN

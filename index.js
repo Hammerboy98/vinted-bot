@@ -2,68 +2,56 @@ const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
 const fs = require("fs");
-// ⭐ IMPORTAZIONI CORRETTE PER AMBIENTI CLOUD (PUPPETEER CORE) ⭐
-const puppeteer = require("puppeteer-core");
+const { addExtra } = require("puppeteer-extra");
+const puppeteerCore = require("puppeteer-core");
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const chromium = require("@sparticuz/chromium");
 
-// ⭐ CONFIGURAZIONE ORA LEGGE DA .ENV (RENDER) - USIAMO 'let' PER POTERLI AGGIORNARE ⭐
-let VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING;
-let VINTED_ANON_ID = process.env.VINTED_ANON_ID;
-let VINTED_CSRF_TOKEN = process.env.VINTED_CSRF_TOKEN;
+// Stealth plugin: bypassa Cloudflare e detection fingerprint
+const puppeteer = addExtra(puppeteerCore);
+puppeteer.use(StealthPlugin());
 
-// Variabile del cookie pulito, anch'essa variabile
-let cleanedCookie = VINTED_COOKIE_STRING;
-
-// ⭐ CONTROLLO ESSENZIALE ALL'AVVIO ⭐
-if (
-  !process.env.TELEGRAM_TOKEN ||
-  !process.env.CHAT_ID ||
-  !VINTED_COOKIE_STRING ||
-  !VINTED_CSRF_TOKEN
-) {
-  console.error(
-    "🛑 Variabili d'ambiente TOKEN, CHAT_ID, COOKIE o CSRF MANCANTI. Impossibile avviare il bot."
-  );
-}
-
-// ⭐ PULIZIA AGGRESSIVA (APPLICATA SOLO AL VALORE INIZIALE) ⭐
-if (cleanedCookie) {
-  cleanedCookie = cleanedCookie
-    .replace(/[^a-zA-Z0-9_\-=:,;\/.\s]/g, "")
-    .replace(/[\n\r]/g, "")
-    .trim();
-}
+// Variabili di sessione (aggiornabili a runtime dopo refresh)
+let VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING || "";
+let VINTED_ANON_ID = process.env.VINTED_ANON_ID || "";
+let VINTED_CSRF_TOKEN = process.env.VINTED_CSRF_TOKEN || "";
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 const PORT = process.env.PORT || 3000;
 
-// === COSTANTI AGGIUNTIVE ===
-const USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
-
-// === LETTURA KEYWORDS DA FILE JSON (ORA ARRAY DI OGGETTI) ===
-let KEYWORDS_CONFIG = [];
-try {
-  const data = fs.readFileSync("keywords.json", "utf8");
-  const json = JSON.parse(data);
-  KEYWORDS_CONFIG = json.keywords || [];
-} catch (err) {
-  console.log(
-    "⚠️ Nessun file keywords.json trovato o errore di lettura, uso array vuoto. Errore:",
-    err.message
+if (!TELEGRAM_TOKEN || !CHAT_ID || !VINTED_COOKIE_STRING || !VINTED_CSRF_TOKEN) {
+  console.error(
+    "🛑 Variabili d'ambiente mancanti: TELEGRAM_TOKEN, CHAT_ID, VINTED_COOKIE_STRING, VINTED_CSRF_TOKEN."
   );
 }
 
-console.log(
-  "🔑 Keywords iniziali (ricerca):",
-  KEYWORDS_CONFIG.map((k) => k.search || "N/A")
-);
+// Pool di User-Agent realistici — ruotati ad ogni richiesta API
+const USER_AGENTS = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+];
 
-// === TELEGRAM BOT SETUP ===
+function getRandomUA() {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
+// Lettura keywords
+let KEYWORDS_CONFIG = [];
+try {
+  const data = fs.readFileSync("keywords.json", "utf8");
+  KEYWORDS_CONFIG = JSON.parse(data).keywords || [];
+} catch (err) {
+  console.log("⚠️ keywords.json non trovato:", err.message);
+}
+
+console.log("🔑 Keywords:", KEYWORDS_CONFIG.map((k) => k.search));
+
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 
-// === UTILITIES PER RITARDI E DUPLICATI ===
 let notifiedLinks = new Set();
 let isRunning = false;
 
@@ -71,25 +59,20 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Genera un ritardo in millisecondi tra un valore minimo e massimo.
- */
 function randomDelay(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-// 🔁 FUNZIONE PER AGGIORNARE I COOKIE USANDO PUPPETEER CORE (TIMEOUT AUMENTATO A 30S)
+// ============================================================
+// REFRESH SESSIONE — Puppeteer + Stealth (bypassa Cloudflare)
+// ============================================================
 async function refreshVintedSession() {
-  console.log(
-    "🔄 Avvio Puppeteer: Tentativo di refresh della sessione Vinted tramite browser headless..."
-  );
-
+  console.log("🔄 Refresh sessione Vinted con Puppeteer stealth...");
   let browser;
   try {
     const executablePath = await chromium.executablePath();
 
     browser = await puppeteer.launch({
-      // Argomenti necessari per l'ambiente Render/container
       args: [
         ...chromium.args,
         "--disable-features=site-isolation-for-navigation",
@@ -101,205 +84,182 @@ async function refreshVintedSession() {
     });
 
     const page = await browser.newPage();
-
-    await page.setUserAgent(USER_AGENT);
-
-    console.log(
-      "...Navigazione su Vinted e attesa del superamento di Cloudflare..."
-    );
-
-    await page.goto("https://www.vinted.it/", {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
+    await page.setUserAgent(getRandomUA());
+    await page.setExtraHTTPHeaders({
+      "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Accept-Encoding": "gzip, deflate, br",
     });
 
-    // ⭐ MODIFICA CHIAVE: Aumento il timeout di attesa del selettore 'body' a 30s ⭐
-    await page.waitForSelector("body", { state: "attached", timeout: 30000 });
+    console.log("...Navigazione su Vinted (networkidle2)...");
+    await page.goto("https://www.vinted.it/", {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
 
-    console.log("...Cattura dei cookie aggiornati...");
+    // Verifica che Vinted sia carico (non la challenge Cloudflare)
+    try {
+      await page.waitForSelector('[data-testid="header--logo"]', { timeout: 15000 });
+      console.log("✅ Pagina Vinted caricata correttamente.");
+    } catch {
+      console.warn("⚠️ Logo Vinted non trovato, possibile challenge Cloudflare attiva. Attendo 5s...");
+      await delay(5000);
+    }
+
+    // Estrai CSRF token dal meta tag (Rails standard)
+    const newCsrfToken = await page
+      .evaluate(() => {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute("content") : null;
+      })
+      .catch(() => null);
 
     const currentCookies = await page.cookies();
-
-    let newSessionCookieFound = false;
-
     const cookieParts = [];
     let newAnonId = null;
+    let sessionFound = false;
 
     for (const cookie of currentCookies) {
       cookieParts.push(`${cookie.name}=${cookie.value}`);
-
-      if (cookie.name === "_vinted_fr_session") {
-        newSessionCookieFound = true;
-      }
-      if (cookie.name === "anon_id") {
-        newAnonId = cookie.value;
-      }
+      if (cookie.name === "_vinted_fr_session") sessionFound = true;
+      if (cookie.name === "anon_id") newAnonId = cookie.value;
     }
 
-    if (newSessionCookieFound) {
-      // Aggiorna tutte le variabili globali con i nuovi valori
+    if (sessionFound) {
       VINTED_COOKIE_STRING = cookieParts.join("; ");
-      cleanedCookie = VINTED_COOKIE_STRING;
-
       if (newAnonId) VINTED_ANON_ID = newAnonId;
-
-      console.log(
-        "✅ Sessione Vinted aggiornata con successo! (Usando Puppeteer Core)"
-      );
-      console.log(
-        `🔍 Nuova Cookie String: ${VINTED_COOKIE_STRING.substring(0, 100)}...`
-      );
+      if (newCsrfToken) {
+        VINTED_CSRF_TOKEN = newCsrfToken;
+        console.log("🔐 CSRF token aggiornato dal meta tag.");
+      }
+      console.log(`✅ Sessione aggiornata! Cookie: ${VINTED_COOKIE_STRING.substring(0, 80)}...`);
       return true;
     }
 
-    console.warn(
-      "⚠️ Refresh fallito: Il cookie di sessione Vinted critico non è stato trovato dopo la navigazione."
-    );
+    console.warn("⚠️ Cookie _vinted_fr_session non trovato. Cloudflare potrebbe aver bloccato il browser.");
     return false;
   } catch (err) {
-    // Log più specifico per il timeout o blocco Cloudflare
-    if (err.message && err.message.includes("Waiting for selector")) {
-      console.error(
-        `❌ Errore critico durante il refresh con Puppeteer: Cloudflare ha bloccato il browser o la pagina è troppo lenta. Dettaglio: ${err.message}`
-      );
-    } else {
-      console.error(
-        "❌ Errore critico durante il refresh con Puppeteer:",
-        err.message
-      );
-    }
+    console.error("❌ Errore refresh Puppeteer:", err.message);
     return false;
   } finally {
-    if (browser) {
-      await browser.close();
-    }
+    if (browser) await browser.close();
   }
 }
 
-// 🛡️ FUNZIONE API CON HEADERS E COOKIE AGGIORNATI (MODIFICATA PER IL RETRY)
+// ============================================================
+// RICERCA API — Retry su 401 / 403 / 429 con backoff esponenziale
+// ============================================================
 async function searchVinted(keyword) {
   const url = "https://www.vinted.it/api/v2/catalog/items";
-  const params = {
-    search_text: keyword,
-  };
 
-  if (!cleanedCookie || !VINTED_CSRF_TOKEN) {
-    console.error(
-      "🛑 SALTO RICERCA API: Cookie o CSRF token non impostati o non validi."
-    );
+  if (!VINTED_COOKIE_STRING || !VINTED_CSRF_TOKEN) {
+    console.error("🛑 Cookie o CSRF token mancanti, salto ricerca.");
     return [];
   }
 
-  // --- Ciclo di Riprova in caso di 401 (Max 2 tentativi) ---
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  const MAX_ATTEMPTS = 3;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const currentUA = getRandomUA();
+
     try {
       const res = await axios.get(url, {
-        params,
-        timeout: 10000,
+        params: { search_text: keyword },
+        timeout: 12000,
         headers: {
-          "User-Agent": USER_AGENT,
+          "User-Agent": currentUA,
           Accept: "application/json, text/plain, */*",
           "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+          "Accept-Encoding": "gzip, deflate, br",
           Referer: "https://www.vinted.it/",
           Connection: "keep-alive",
-
-          // ⭐ USA IL COOKIE AGGIORNATO QUI ⭐
-          Cookie: cleanedCookie,
-
+          Cookie: VINTED_COOKIE_STRING,
           "X-Anon-Id": VINTED_ANON_ID,
           "X-CSRF-Token": VINTED_CSRF_TOKEN,
           "X-Money-Object": "true",
+          "Sec-Fetch-Site": "same-origin",
+          "Sec-Fetch-Mode": "cors",
+          "Sec-Fetch-Dest": "empty",
+          "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": '"Windows"',
         },
       });
 
-      // Ritorna i risultati se la chiamata ha successo
       return res.data.items || [];
     } catch (err) {
-      if (err.response) {
-        console.error(
-          `❌ Errore ${err.response.status} durante la ricerca API per "${keyword}" (Tentativo ${attempt})`
-        );
-        if (err.response.status === 401) {
-          console.error(
-            `🛑 BLOCCO 401 RILEVATO. Cookie/CSRF scaduto. Avvio refresh...`
-          );
+      const status = err.response?.status;
 
-          if (attempt === 1) {
-            // Esegui il refresh con Puppeteer
-            const refreshSuccess = await refreshVintedSession();
-            if (refreshSuccess) {
-              console.log(
-                `✨ Refresh OK. Riprovo la ricerca per "${keyword}".`
-              );
-              continue; // Passa al tentativo 2 con il nuovo cookie
-            } else {
-              console.error(`🔴 Refresh fallito. Uscita.`);
-              return [];
-            }
-          } else {
-            // Se fallisce anche al secondo tentativo (dopo il refresh)
-            console.error(`🔴 Fallimento persistente 401 dopo il refresh.`);
+      if (status === 401) {
+        console.warn(`🔑 401 per "${keyword}" (tentativo ${attempt}) — refresh sessione...`);
+        if (attempt < MAX_ATTEMPTS) {
+          const ok = await refreshVintedSession();
+          if (!ok) {
+            console.error("🔴 Refresh fallito. Uscita.");
             return [];
           }
+          continue;
         }
-      } else {
-        console.error(
-          `❌ Errore durante la ricerca API "${keyword}" (Tentativo ${attempt}):`,
-          err.message
-        );
+        console.error("🔴 401 persistente dopo refresh.");
+        return [];
       }
-      // Per qualsiasi altro errore (es. timeout o altro errore), esci
+
+      if (status === 403) {
+        console.warn(`🚫 403 per "${keyword}" (tentativo ${attempt}) — Cloudflare block, refresh...`);
+        if (attempt < MAX_ATTEMPTS) {
+          const ok = await refreshVintedSession();
+          if (!ok) return [];
+          await delay(randomDelay(5000, 10000));
+          continue;
+        }
+        return [];
+      }
+
+      if (status === 429) {
+        // Backoff esponenziale: 30s, 60s, 120s
+        const backoff = Math.min(300000, 30000 * Math.pow(2, attempt - 1));
+        console.warn(`⏳ 429 rate limit per "${keyword}". Attendo ${backoff / 1000}s...`);
+        if (attempt < MAX_ATTEMPTS) {
+          await delay(backoff);
+          continue;
+        }
+        return [];
+      }
+
+      console.error(`❌ Errore ricerca "${keyword}" (tentativo ${attempt}):`, err.message);
       return [];
     }
   }
-  return []; // Fallback finale
+
+  return [];
 }
 
-// === FUNZIONE PRINCIPALE DI CONTROLLO CON FILTRO AGGRESSIVO ===
+// ============================================================
+// CICLO PRINCIPALE
+// ============================================================
 async function checkVinted() {
   if (isRunning) return;
   isRunning = true;
-
   console.log("🔍 Controllo Vinted…");
 
   try {
-    // ⭐ INIZIO BLOCCO TRY/CATCH PER MONITORAGGIO CICLO ⭐
-    // Itera sulla configurazione delle keyword (che ora sono oggetti)
     for (let config of KEYWORDS_CONFIG) {
       const keyword = config.search;
-      // mustContain: Array di parole chiave che DEVONO essere presenti nel risultato (logica AND)
       const mustContain = config.must_contain || [];
-
       const items = await searchVinted(keyword);
 
-      if (items.length === 0) {
-        console.log(`✅ Trovati 0 articoli per "${keyword}"`);
-      }
+      if (items.length === 0) console.log(`ℹ️ 0 articoli per "${keyword}"`);
 
-      // ⭐ CICLO DI FILTRAGGIO AGGRESSIVO ⭐
       for (const item of items) {
         const articleId = item.id;
         const link = `https://www.vinted.it/items/${articleId}`;
+        const searchContent = `${item.title} ${item.description || ""}`.toLowerCase();
 
-        // Combiniamo titolo e descrizione in minuscolo per la verifica
-        const searchContent = `${item.title} ${item.description}`.toLowerCase();
-
-        // Controllo di coerenza: l'articolo DEVE contenere TUTTE le parole in 'mustContain'
-        const isRelevant = mustContain.every((word) =>
-          searchContent.includes(word)
-        );
-
-        if (!isRelevant) {
-          // Articolo non pertinente (manca una delle parole chiave essenziali filtrate)
-          continue;
-        }
-
-        // Controllo anti-duplicato
+        const isRelevant = mustContain.every((word) => searchContent.includes(word));
+        if (!isRelevant) continue;
         if (notifiedLinks.has(link)) continue;
 
         notifiedLinks.add(link);
 
-        // ⭐ CORREZIONE DEL PREZZO: Estrazione corretta dell'amount e formattazione ⭐
         const itemPrice = item.price;
         const priceDisplay =
           itemPrice && itemPrice.amount
@@ -307,147 +267,105 @@ async function checkVinted() {
             : "Prezzo Sconosciuto";
 
         const photoUrl = item.photo ? item.photo.url : null;
-
-        // ⭐ UTILIZZO DELLA VARIABILE priceDisplay NELLA CAPTION ⭐
-        const caption = `✨ **Nuovo Articolo Trovato!**\n🔎 Keyword di Ricerca: ${keyword}\n\n📛 *${item.title}*\n\n💰 **Prezzo:** ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
+        const caption = `✨ **Nuovo Articolo Trovato!**\n🔎 Keyword: ${keyword}\n\n📛 *${item.title}*\n\n💰 **Prezzo:** ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
 
         if (photoUrl) {
           try {
-            await bot.sendPhoto(CHAT_ID, photoUrl, {
-              caption: caption,
-              parse_mode: "Markdown",
-            });
-            console.log("📨 Notificato con Foto:", item.title);
+            await bot.sendPhoto(CHAT_ID, photoUrl, { caption, parse_mode: "Markdown" });
+            console.log("📨 Notificato con foto:", item.title);
           } catch (e) {
-            console.error("❌ Errore invio foto Telegram:", e.message);
-            // Fallback
+            console.error("❌ Errore foto Telegram:", e.message);
             await bot.sendMessage(CHAT_ID, caption, { parse_mode: "Markdown" });
           }
         } else {
-          // Se la foto non è disponibile
           await bot.sendMessage(CHAT_ID, caption, { parse_mode: "Markdown" });
           console.log("📨 Notificato (solo testo):", item.title);
         }
-      } // fine for (item)
+      }
 
-      // Ritardo casuale tra una keyword e l'altra
       const waitTime = randomDelay(10000, 20000);
-      console.log(
-        `⏳ Attendo ${
-          waitTime / 1000
-        } secondi prima di cercare la prossima keyword...`
-      );
+      console.log(`⏳ Prossima keyword tra ${waitTime / 1000}s...`);
       await delay(waitTime);
-    } // fine for (config)
+    }
 
-    console.log("✅ Ciclo di controllo Vinted completato.");
+    console.log("✅ Ciclo completato.");
   } catch (err) {
-    console.error(
-      "❌ ERRORE CRITICO E NON GESTITO NEL CICLO DI CONTROLLO:",
-      err.message
-    );
-
-    // ⭐ AZIONE CHIAVE: Invia un avviso di errore critico su Telegram ⭐
+    console.error("❌ ERRORE CRITICO NEL CICLO:", err.message);
     await bot
       .sendMessage(
         CHAT_ID,
-        `🚨 **ERRORE CRITICO!** Il ciclo di controllo Vinted è fallito a causa di un errore imprevisto.\n\nControlla i log di Render e riavvia il servizio.\n\nDettagli: \`${err.message}\``,
+        `🚨 **ERRORE CRITICO!** Il ciclo di controllo è fallito.\n\nDettagli: \`${err.message}\``,
         { parse_mode: "Markdown" }
       )
-      .catch((e) =>
-        console.error(
-          "❌ Errore invio allerta Telegram (Errore su errore):",
-          e.message
-        )
-      );
+      .catch((e) => console.error("❌ Errore invio allerta Telegram:", e.message));
   } finally {
-    // ESSENZIALE: Resetta lo stato di esecuzione per permettere il prossimo ciclo schedulato.
     isRunning = false;
   }
 }
 
-// ⏰ LOGICA MODIFICATA: Ciclo FISSO ogni 15 minuti (900.000 ms)
+// ============================================================
+// LOOP OGNI 15 MINUTI
+// ============================================================
 async function startVintedLoop() {
-  // Esegui il controllo una volta subito
   checkVinted();
 
-  const FIFTEEN_MINUTES_MS = 900000;
-
   while (true) {
-    const loopWaitTime = FIFTEEN_MINUTES_MS;
-
-    console.log(
-      `--- CICLO COMPLETATO. Prossimo controllo tra 15.0 minuti. ---`
-    );
-    await delay(loopWaitTime);
-
+    console.log("--- Prossimo ciclo tra 15 minuti. ---");
+    await delay(900000);
     await checkVinted();
   }
 }
 
-// Avvia il ciclo principale
 startVintedLoop();
 
-// ⭐ MESSAGGIO DI CONFERMA ALL'AVVIO ⭐
 bot
-  .sendMessage(CHAT_ID, "🤖 **PokéBot Vinted Avviato!** Ricerca in corso...", {
-    parse_mode: "Markdown",
-  })
-  .catch((err) =>
-    console.error("❌ Errore invio messaggio di avvio:", err.message)
-  );
+  .sendMessage(CHAT_ID, "🤖 **PokéBot Vinted Avviato!** Ricerca in corso...", { parse_mode: "Markdown" })
+  .catch((err) => console.error("❌ Errore messaggio avvio:", err.message));
 
-// === PULIZIA DUPLICATI OGNI 8 ORE ===
+// Pulizia set duplicati ogni 8 ore
 setInterval(() => {
   notifiedLinks.clear();
   console.log("🧹 Pulizia notifiche.");
 }, 8 * 60 * 60 * 1000);
 
-// =========================================================
-// ⭐ CONFIGURAZIONE WEBHOOK (Per Render)
-// =========================================================
+// ============================================================
+// EXPRESS + WEBHOOK TELEGRAM
+// ============================================================
 const app = express();
 app.use(express.json());
 
 const externalUrl = process.env.RENDER_EXTERNAL_URL;
 
 if (externalUrl) {
-  // 1. Configura il Webhook su Telegram
   const webhookUrl = `${externalUrl}/bot${TELEGRAM_TOKEN}`;
   bot
     .setWebHook(webhookUrl)
-    .then(() => {
-      console.log(`✅ Webhook impostato su: ${webhookUrl}`);
-    })
-    .catch((err) => {
-      console.error("❌ Errore impostazione Webhook:", err.message);
-    });
+    .then(() => console.log(`✅ Webhook impostato: ${webhookUrl}`))
+    .catch((err) => console.error("❌ Errore webhook:", err.message));
 
-  // 2. Endpoint per ricevere i messaggi da Telegram
   app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
     bot.processUpdate(req.body);
     res.sendStatus(200);
   });
 
-  // 3. Server per monitoraggio (Health Check)
-  app.get("/", (_, res) => res.send("PokéBot attivo tramite Webhook."));
+  app.get("/", (_, res) => res.send("PokéBot Vinted attivo."));
+
+  // Self-ping ogni 10 minuti per evitare lo spindown su Render free tier
+  // Per massima affidabilità, configura anche UptimeRobot su questo URL.
+  setInterval(() => {
+    axios.get(externalUrl).catch(() => {});
+  }, 10 * 60 * 1000);
 } else {
-  // Fallback locale
-  console.log("⚠️ Variabile RENDER_EXTERNAL_URL non trovata. Avvio Polling.");
+  console.log("⚠️ RENDER_EXTERNAL_URL non trovato. Avvio Polling locale.");
   bot.startPolling();
-  app.get("/", (_, res) => res.send("PokéBot attivo con Polling."));
+  app.get("/", (_, res) => res.send("PokéBot attivo (polling locale)."));
 }
 
-// Avvia il server Express
 app.listen(PORT, () => console.log(`Server su porta ${PORT}`));
 
-// =========================================================
-// 🔧 COMANDI TELEGRAM DINAMICI
-// =========================================================
-
-/**
- * Funzione helper per salvare la configurazione.
- */
+// ============================================================
+// COMANDI TELEGRAM DINAMICI
+// ============================================================
 function saveKeywordsConfig() {
   fs.writeFileSync(
     "keywords.json",
@@ -455,27 +373,17 @@ function saveKeywordsConfig() {
   );
 }
 
-// ➕ /add keyword
 bot.onText(/\/add (.+)/, (msg, match) => {
   const newKeywordSearch = match[1].toLowerCase().trim();
-
-  // Genera i filtri must_contain separando la frase
   const mustContain = newKeywordSearch.split(/\s+/).filter((w) => w.length > 2);
+  const newConfig = { search: newKeywordSearch, must_contain: mustContain };
 
-  const newConfig = {
-    search: newKeywordSearch,
-    must_contain: mustContain,
-  };
-
-  // Controlla se la keyword di ricerca è già presente
   if (!KEYWORDS_CONFIG.some((c) => c.search === newKeywordSearch)) {
     KEYWORDS_CONFIG.push(newConfig);
     saveKeywordsConfig();
     bot.sendMessage(
       msg.chat.id,
-      `💾 Keyword aggiunta.\n**Ricerca Vinted:** *${newKeywordSearch}*\n**Filtri (Must Contain):** ${mustContain.join(
-        ", "
-      )}`,
+      `💾 Keyword aggiunta.\n**Ricerca:** *${newKeywordSearch}*\n**Filtri:** ${mustContain.join(", ")}`,
       { parse_mode: "Markdown" }
     );
   } else {
@@ -487,29 +395,22 @@ bot.onText(/\/add (.+)/, (msg, match) => {
   }
 });
 
-// 📜 /list → mostra tutte le keyword
 bot.onText(/\/list/, (msg) => {
   if (KEYWORDS_CONFIG.length === 0) {
     bot.sendMessage(msg.chat.id, "📭 Nessuna keyword salvata.");
     return;
   }
-
   const list = KEYWORDS_CONFIG.map(
-    (k) =>
-      `• **Ricerca:** ${k.search}\n  (Filtri: ${k.must_contain.join(", ")})`
+    (k) => `• **Ricerca:** ${k.search}\n  (Filtri: ${k.must_contain.join(", ")})`
   ).join("\n\n");
-
-  bot.sendMessage(msg.chat.id, `📜 *Lista keyword attuali:*\n\n${list}`, {
+  bot.sendMessage(msg.chat.id, `📜 *Lista keyword:*\n\n${list}`, {
     parse_mode: "Markdown",
   });
 });
 
-// ❌ /remove keyword
 bot.onText(/\/remove (.+)/, (msg, match) => {
   const keywordToRemove = match[1].toLowerCase().trim();
-
   const initialLength = KEYWORDS_CONFIG.length;
-  // Filtra l'array mantenendo solo le configurazioni la cui search non è quella da rimuovere
   KEYWORDS_CONFIG = KEYWORDS_CONFIG.filter((k) => k.search !== keywordToRemove);
 
   if (KEYWORDS_CONFIG.length < initialLength) {
@@ -518,9 +419,9 @@ bot.onText(/\/remove (.+)/, (msg, match) => {
       parse_mode: "Markdown",
     });
   } else {
-    return bot.sendMessage(
+    bot.sendMessage(
       msg.chat.id,
-      `❌ Keyword *${keywordToRemove}* non trovata. (Cerca per il valore di 'Ricerca Vinted')`,
+      `❌ Keyword *${keywordToRemove}* non trovata.`,
       { parse_mode: "Markdown" }
     );
   }
