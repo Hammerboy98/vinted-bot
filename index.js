@@ -12,9 +12,10 @@ const puppeteer = addExtra(puppeteerCore);
 puppeteer.use(StealthPlugin());
 
 // Variabili di sessione (aggiornabili a runtime dopo refresh)
-let VINTED_COOKIE_STRING = process.env.VINTED_COOKIE_STRING || "";
-let VINTED_ANON_ID = process.env.VINTED_ANON_ID || "";
-let VINTED_CSRF_TOKEN = process.env.VINTED_CSRF_TOKEN || "";
+// Rimuove newline e control character dal valore letto dall'env (copia-incolla nel dashboard Render)
+let VINTED_COOKIE_STRING = (process.env.VINTED_COOKIE_STRING || "").replace(/[\x00-\x1F\x7F]/g, "").trim();
+let VINTED_ANON_ID = (process.env.VINTED_ANON_ID || "").replace(/[\x00-\x1F\x7F]/g, "").trim();
+let VINTED_CSRF_TOKEN = (process.env.VINTED_CSRF_TOKEN || "").replace(/[\x00-\x1F\x7F]/g, "").trim();
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
