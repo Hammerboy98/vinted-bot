@@ -1,44 +1,67 @@
 {
   "keywords": [
-    {
-      "search": "Pokemon Gold Star",
-      "must_contain": ["pokemon", "gold", "star"]
-    },
-    {
-      "search": "Pokemon Gold Star Rayquaza",
-      "must_contain": ["pokemon", "gold", "star", "rayquaza"]
-    },
-    {
-      "search": "Pokemon Shining",
-      "must_contain": ["pokemon", "shining"]
-    },
-    {
-      "search": "Pokemon Crystal",
-      "must_contain": ["pokemon", "crystal"]
-    },
-    {
-      "search": "Pokemon Gold Star Latios",
-      "must_contain": ["pokemon", "gold", "star", "latios"]
-    },
-    {
-      "search": "Pokemon Gold Star Latias",
-      "must_contain": ["pokemon", "gold", "star", "latias"]
-    },
-    {
-      "search": "Pokemon Gold Star Mudkip",
-      "must_contain": ["pokemon", "gold", "star", "mudkip"]
-    },
-    {
-      "search": "Pokemon Gold Star Torchic",
-      "must_contain": ["pokemon", "gold", "star", "torchic"]
-    },
-    {
-      "search": "Pokemon Gold Star Treecko",
-      "must_contain": ["pokemon", "gold", "star", "treecko"]
-    },
-    {
-      "search": "Pokemon Neo Destiny",
-      "must_contain": ["pokemon", "neo", "destiny"]
-    }
+    {"search": "Pokemon Gold Star", "must_contain": ["pokemon", "gold", "star"]},
+    {"search": "Pokemon Gold Star Rayquaza", "must_contain": ["pokemon", "gold", "star", "rayquaza"]},
+    {"search": "Pokemon Gold Star Umbreon", "must_contain": ["pokemon", "gold", "star", "umbreon"]},
+    {"search": "Pokemon Gold Star Espeon", "must_contain": ["pokemon", "gold", "star", "espeon"]},
+    {"search": "Pokemon Gold Star Charizard", "must_contain": ["pokemon", "gold", "star", "charizard"]},
+    {"search": "Pokemon Gold Star Mewtwo", "must_contain": ["pokemon", "gold", "star", "mewtwo"]},
+    {"search": "Pokemon Gold Star Pikachu", "must_contain": ["pokemon", "gold", "star", "pikachu"]},
+    {"search": "Pokemon Gold Star Vaporeon", "must_contain": ["pokemon", "gold", "star", "vaporeon"]},
+    {"search": "Pokemon Gold Star Flareon", "must_contain": ["pokemon", "gold", "star", "flareon"]},
+    {"search": "Pokemon Gold Star Jolteon", "must_contain": ["pokemon", "gold", "star", "jolteon"]},
+    {"search": "Pokemon Gold Star Suicune", "must_contain": ["pokemon", "gold", "star", "suicune"]},
+    {"search": "Pokemon Gold Star Raikou", "must_contain": ["pokemon", "gold", "star", "raikou"]},
+    {"search": "Pokemon Gold Star Entei", "must_contain": ["pokemon", "gold", "star", "entei"]},
+    {"search": "Pokemon Gold Star Celebi", "must_contain": ["pokemon", "gold", "star", "celebi"]},
+    {"search": "Pokemon Gold Star Regirock", "must_contain": ["pokemon", "gold", "star", "regirock"]},
+    {"search": "Pokemon Gold Star Regice", "must_contain": ["pokemon", "gold", "star", "regice"]},
+    {"search": "Pokemon Gold Star Registeel", "must_contain": ["pokemon", "gold", "star", "registeel"]},
+    {"search": "Pokemon Gold Star Latios", "must_contain": ["pokemon", "gold", "star", "latios"]},
+    {"search": "Pokemon Gold Star Latias", "must_contain": ["pokemon", "gold", "star", "latias"]},
+    {"search": "Pokemon Gold Star Mudkip", "must_contain": ["pokemon", "gold", "star", "mudkip"]},
+    {"search": "Pokemon Gold Star Torchic", "must_contain": ["pokemon", "gold", "star", "torchic"]},
+    {"search": "Pokemon Gold Star Treecko", "must_contain": ["pokemon", "gold", "star", "treecko"]},
+
+    {"search": "Pokemon Shining", "must_contain": ["pokemon", "shining"]},
+    {"search": "Pokemon Shining Charizard", "must_contain": ["pokemon", "shining", "charizard"]},
+    {"search": "Pokemon Shining Mewtwo", "must_contain": ["pokemon", "shining", "mewtwo"]},
+    {"search": "Pokemon Shining Steelix", "must_contain": ["pokemon", "shining", "steelix"]},
+    {"search": "Pokemon Shining Kabutops", "must_contain": ["pokemon", "shining", "kabutops"]},
+    {"search": "Pokemon Shining Raichu", "must_contain": ["pokemon", "shining", "raichu"]},
+    {"search": "Pokemon Shining Gyarados", "must_contain": ["pokemon", "shining", "gyarados"]},
+    {"search": "Pokemon Shining Tyranitar", "must_contain": ["pokemon", "shining", "tyranitar"]},
+    {"search": "Pokemon Shining Celebi", "must_contain": ["pokemon", "shining", "celebi"]},
+    {"search": "Pokemon Shining Noctowl", "must_contain": ["pokemon", "shining", "noctowl"]},
+    {"search": "Pokemon Shining Magikarp", "must_contain": ["pokemon", "shining", "magikarp"]},
+
+    {"search": "Pokemon Crystal", "must_contain": ["pokemon", "crystal"]},
+    {"search": "Pokemon Crystal Charizard", "must_contain": ["pokemon", "crystal", "charizard"]},
+    {"search": "Pokemon Crystal Lugia", "must_contain": ["pokemon", "crystal", "lugia"]},
+    {"search": "Pokemon Crystal Ho-Oh", "must_contain": ["pokemon", "crystal", "ho-oh"]},
+    {"search": "Pokemon Crystal Nidoking", "must_contain": ["pokemon", "crystal", "nidoking"]},
+    {"search": "Pokemon Crystal Crobat", "must_contain": ["pokemon", "crystal", "crobat"]},
+    {"search": "Pokemon Crystal Suicune", "must_contain": ["pokemon", "crystal", "suicune"]},
+    {"search": "Pokemon Crystal Raikou", "must_contain": ["pokemon", "crystal", "raikou"]},
+    {"search": "Pokemon Crystal Entei", "must_contain": ["pokemon", "crystal", "entei"]},
+    {"search": "Pokemon Crystal Celebi", "must_contain": ["pokemon", "crystal", "celebi"]},
+    {"search": "Pokemon Crystal Kingdra", "must_contain": ["pokemon", "crystal", "kingdra"]},
+
+    {"search": "Pokemon Neo Destiny", "must_contain": ["pokemon", "neo", "destiny"]},
+    {"search": "Pokemon Neo Genesis Lugia", "must_contain": ["pokemon", "lugia"]},
+    {"search": "Pokemon Neo Genesis Ho-Oh", "must_contain": ["pokemon", "ho-oh"]},
+
+    {"search": "Pokemon Skyridge Charizard", "must_contain": ["pokemon", "skyridge", "charizard"]},
+    {"search": "Pokemon Aquapolis Charizard", "must_contain": ["pokemon", "aquapolis", "charizard"]},
+    {"search": "Pokemon Expedition Charizard", "must_contain": ["pokemon", "expedition", "charizard"]},
+
+    {"search": "Pokemon 1st Edition Charizard", "must_contain": ["pokemon", "charizard"]},
+    {"search": "Pokemon Shadowless Charizard", "must_contain": ["pokemon", "shadowless", "charizard"]},
+    {"search": "Pokemon Base Set Charizard", "must_contain": ["pokemon", "charizard", "base"]},
+
+    {"search": "Pokemon Illustrator Pikachu", "must_contain": ["pokemon", "illustrator"]},
+    {"search": "Pokemon Trophy Pikachu", "must_contain": ["pokemon", "trophy", "pikachu"]},
+    {"search": "Pokemon Tropical Mega Battle", "must_contain": ["pokemon", "tropical"]},
+    {"search": "Pokemon No 1 Trainer", "must_contain": ["pokemon", "trainer"]}
   ]
 }

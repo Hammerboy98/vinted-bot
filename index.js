@@ -58,6 +58,19 @@ let notifiedLinks = new Set();
 let isRunning = false;
 let refreshPromise = null; // Mutex: evita lanci paralleli di Puppeteer
 
+// Termini che indicano con certezza che l'articolo NON è una carta
+const EXCLUDE_TERMS = [
+  "peluche", "plush", "pupazzo", "stuffed",
+  "videogioco", "gioco da tavolo", "gioco di ruolo",
+  "custodia", "cover", "case", "pellicola", "vetro temperato",
+  "maglietta", "felpa", "hoodie", "cappello", "costume", "pigiama",
+  "poster", "quadro", "stampa", "canvas",
+  "zaino", "borsa", "borsetta", "portafoglio",
+  "ciondolo", "collana", "bracciale", "orecchini",
+  "fumetto", "manga", "libro",
+  "lampada", "tazza", "tappetino",
+];
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -284,6 +297,10 @@ async function checkVinted() {
 
         const isRelevant = mustContain.every((word) => searchContent.includes(word));
         if (!isRelevant) continue;
+
+        // Scarta tutto ciò che non è una carta (peluche, custodie, vestiti, ecc.)
+        const isNotCard = EXCLUDE_TERMS.some((term) => searchContent.includes(term));
+        if (isNotCard) continue;
         if (notifiedLinks.has(link)) continue;
 
         notifiedLinks.add(link);
