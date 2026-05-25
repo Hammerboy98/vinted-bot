@@ -72,11 +72,11 @@ const EXCLUDE_TERMS = [
   "custodia", "cover", "case", "pellicola", "vetro temperato",
   // Abbigliamento / calzature
   "maglietta", "t-shirt", "felpa", "hoodie", "cappello", "costume", "pigiama",
-  "calzini", "socks", "scarpe",
+  "calzini", "socks", "scarpe", "scarpa",
   "sandali", "sandalo", "sandales", "sandalen", "sandal",
   "ciabatte", "ciabatta", "ciabattine",
   "infradito", "claquettes", "slippers",
-  "sneaker", "scarpa",
+  "sneaker",
   // Decorazioni / arte
   "poster", "quadro", "stampa", "canvas", "lampada",
   // Casa
@@ -107,98 +107,6 @@ function delay(ms) {
 
 function randomDelay(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
-}
-
-function normalize(s) {
-  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-}
-
-// Parole che identificano set/tipo carta (non nomi di Pokémon)
-const SET_WORDS = new Set([
-  "gold", "star", "shining", "crystal", "neo", "destiny", "genesis",
-  "shadowless", "base", "illustrator", "trophy", "tropical",
-  "skyridge", "aquapolis", "expedition", "platinum", "supreme", "victors",
-  "trainer", "1st", "edition",
-]);
-
-// Alias multilingua per i set identifier — consente di trovare annunci in qualsiasi lingua
-const SET_ALIASES = {
-  "gold star": [
-    "stella d'oro", "stella dorata",
-    "etoile or", "etoile doree",
-    "goldener stern", "goldstern",
-    "estrella dorada", "estrella de oro",
-    "estrela dourada",
-  ],
-  "shining": [
-    "brillant", "brillante", "glanzend", "strahlend", "lucente",
-  ],
-  "crystal": [
-    "cristallo", "cristal", "kristall",
-  ],
-  "shadowless": ["senza ombra", "sans ombre", "shadowles"],
-  "illustrator": ["illustrateur", "illustratore"],
-  "trophy": ["trofeo", "trophee"],
-};
-
-// Genera tutte le varianti di query per un keyword config (multilingua)
-function buildQueryVariants(mustContain) {
-  const specific = mustContain.filter(w => w !== "pokemon");
-  if (specific.length === 0) return [mustContain.join(" ")];
-
-  const queries = new Set();
-  queries.add(specific.join(" ")); // query principale
-
-  const pokemonTerms = specific.filter(w => !SET_WORDS.has(w));
-  const setTerms    = specific.filter(w => SET_WORDS.has(w));
-
-  // Alias multilingua SOLO se c'è un nome Pokémon come ancora:
-  // senza di esso, query come "stella d'oro" da sola trova collane, vestiti, ecc.
-  if (pokemonTerms.length > 0) {
-    for (const [phrase, aliases] of Object.entries(SET_ALIASES)) {
-      const pWords = phrase.split(" ");
-      if (pWords.every(w => setTerms.includes(w))) {
-        for (const alias of aliases) {
-          const q = [...pokemonTerms, alias].filter(Boolean).join(" ");
-          if (q.trim()) queries.add(q.trim());
-        }
-      }
-    }
-  }
-
-  return [...queries];
-}
-
-// Controlla se il titolo soddisfa il must_contain, accettando alias multilingua
-function titleMatchesMustContain(titleNorm, mustContain) {
-  const remaining = mustContain.filter(w => w !== "pokemon"); // "pokemon" opzionale nel titolo
-
-  // Controlla prima le frasi composte con alias (es. "gold star" → "stella d'oro")
-  for (const [phrase, aliases] of Object.entries(SET_ALIASES)) {
-    const pWords = phrase.split(" ");
-    if (pWords.every(w => remaining.includes(w))) {
-      // "goldstar" come parola unica è accettata solo nel title-check, non come query
-      const variants = [phrase, "goldstar", "gold-star", ...aliases].map(a => normalize(a));
-      if (variants.some(v => titleNorm.includes(v))) {
-        // Frase trovata (in qualsiasi lingua): rimuovi le parole da remaining
-        for (const w of pWords) {
-          const idx = remaining.indexOf(w);
-          if (idx !== -1) remaining.splice(idx, 1);
-        }
-      }
-      // Se non trovata, le parole restano in remaining e il check successivo le fallirà
-    }
-  }
-
-  // Controlla le parole rimanenti:
-  // - SET_WORDS usano word boundary (\b) per evitare match parziali
-  //   ("gold" non matcha "golden", "star" non matcha "vstar")
-  // - Nomi Pokémon usano includes() normale
-  return remaining.every(w => {
-    const n = normalize(w);
-    if (SET_WORDS.has(w)) return new RegExp(`\\b${n}\\b`).test(titleNorm);
-    return titleNorm.includes(n);
-  });
 }
 
 // ============================================================
@@ -311,7 +219,7 @@ async function _execRefresh() {
 // ============================================================
 // RICERCA API — Retry su 401 / 403 / 429 con backoff esponenziale
 // ============================================================
-async function searchVinted(keyword, page = 1) {
+async function searchVinted(keyword) {
   const url = "https://www.vinted.it/api/v2/catalog/items";
 
   if (!VINTED_COOKIE_STRING || !VINTED_CSRF_TOKEN) {
@@ -326,7 +234,7 @@ async function searchVinted(keyword, page = 1) {
 
     try {
       const res = await axios.get(url, {
-        params: { search_text: keyword, per_page: 96, page, order: "newest_first" },
+        params: { search_text: keyword, per_page: 96, order: "newest_first" },
         timeout: 12000,
         headers: {
           "User-Agent": currentUA,
@@ -396,24 +304,6 @@ async function searchVinted(keyword, page = 1) {
   return [];
 }
 
-// Recupera TUTTE le pagine di risultati per una query (max 5 pagine = 480 articoli)
-async function fetchAllPages(searchText) {
-  const results = new Map();
-  let page = 1;
-  const MAX_PAGES = 5;
-
-  while (page <= MAX_PAGES) {
-    const items = await searchVinted(searchText, page);
-    if (!items || items.length === 0) break;
-    for (const item of items) results.set(item.id, item);
-    if (items.length < 96) break; // ultima pagina
-    page++;
-    await delay(randomDelay(800, 1500));
-  }
-
-  return [...results.values()];
-}
-
 // ============================================================
 // CICLO PRINCIPALE
 // ============================================================
@@ -427,29 +317,29 @@ async function checkVinted() {
       const keyword = config.search;
       const mustContain = config.must_contain || [];
 
-      // Genera tutte le varianti di query (multilingua) e raccoglie item unici con paginazione completa
-      const queryVariants = buildQueryVariants(mustContain);
-      console.log(`🔎 "${keyword}" → varianti: ${queryVariants.join(" | ")}`);
+      // Usa solo i termini specifici per la ricerca API (senza "pokemon"):
+      // molti venditori non scrivono "Pokemon" nel titolo, e Vinted trova più
+      // risultati con termini brevi e mirati (es. "rayquaza gold star").
+      const specificTerms = mustContain.filter(w => w !== "pokemon");
+      const apiQuery = specificTerms.length > 0 ? specificTerms.join(" ") : keyword;
 
-      const allItemsMap = new Map();
-      for (let i = 0; i < queryVariants.length; i++) {
-        const pageItems = await fetchAllPages(queryVariants[i]);
-        for (const item of pageItems) allItemsMap.set(item.id, item);
-        if (i < queryVariants.length - 1) await delay(randomDelay(2000, 3000));
-      }
-      const items = [...allItemsMap.values()];
+      const items = await searchVinted(apiQuery);
 
-      console.log(`📦 ${items.length} articoli totali per "${keyword}"`);
+      if (items.length === 0) console.log(`ℹ️ 0 articoli per "${keyword}"`);
 
       for (const item of items) {
         const articleId = item.id;
         const link = `https://www.vinted.it/items/${articleId}`;
 
-        const titleNorm  = normalize(item.title);
+        const normalize = (s) =>
+          s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+        const titleNorm = normalize(item.title);
         const fullContent = normalize(`${item.title} ${item.description || ""}`);
 
-        // Controlla must_contain nel TITOLO, con supporto alias multilingua
-        if (!titleMatchesMustContain(titleNorm, mustContain)) continue;
+        // Tutte le parole devono comparire nel TITOLO (non nella descrizione)
+        const isRelevant = mustContain.every((word) => titleNorm.includes(normalize(word)));
+        if (!isRelevant) continue;
 
         // Scarta titoli con "no" come parola intera (es. "no charizard gold star")
         if (/\bno\b/i.test(item.title)) continue;
@@ -484,7 +374,7 @@ async function checkVinted() {
         }
       }
 
-      const waitTime = randomDelay(5000, 10000);
+      const waitTime = randomDelay(10000, 20000);
       console.log(`⏳ Prossima keyword tra ${waitTime / 1000}s...`);
       await delay(waitTime);
     }
