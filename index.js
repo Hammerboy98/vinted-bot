@@ -293,13 +293,19 @@ async function checkVinted() {
       for (const item of items) {
         const articleId = item.id;
         const link = `https://www.vinted.it/items/${articleId}`;
-        const searchContent = `${item.title} ${item.description || ""}`.toLowerCase();
 
-        const isRelevant = mustContain.every((word) => searchContent.includes(word));
+        const normalize = (s) =>
+          s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+        const titleNorm = normalize(item.title);
+        const fullContent = normalize(`${item.title} ${item.description || ""}`);
+
+        // Tutte le parole devono comparire nel TITOLO (non nella descrizione)
+        const isRelevant = mustContain.every((word) => titleNorm.includes(normalize(word)));
         if (!isRelevant) continue;
 
         // Scarta tutto ciò che non è una carta (peluche, custodie, vestiti, ecc.)
-        const isNotCard = EXCLUDE_TERMS.some((term) => searchContent.includes(term));
+        const isNotCard = EXCLUDE_TERMS.some((term) => fullContent.includes(normalize(term)));
         if (isNotCard) continue;
         if (notifiedLinks.has(link)) continue;
 
