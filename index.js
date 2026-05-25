@@ -60,15 +60,41 @@ let refreshPromise = null; // Mutex: evita lanci paralleli di Puppeteer
 
 // Termini che indicano con certezza che l'articolo NON è una carta
 const EXCLUDE_TERMS = [
-  "peluche", "plush", "pupazzo", "stuffed",
+  // Peluche / giocattoli morbidi
+  "peluche", "plush", "pupazzo", "stuffed", "bambolotto",
+  // Statuine / figure
+  "statuina", "statua", "figurina", "action figure", "miniatura", "funko",
+  // Console / videogiochi
   "videogioco", "gioco da tavolo", "gioco di ruolo",
+  "gameboy", "game boy", "gba", "nintendo ds", "nds", "game boy advance",
+  "console", "cartuccia",
+  // Accessori elettronici
   "custodia", "cover", "case", "pellicola", "vetro temperato",
-  "maglietta", "felpa", "hoodie", "cappello", "costume", "pigiama",
-  "poster", "quadro", "stampa", "canvas",
+  // Abbigliamento
+  "maglietta", "t-shirt", "felpa", "hoodie", "cappello", "costume", "pigiama",
+  "calzini", "socks", "scarpe",
+  // Decorazioni / arte
+  "poster", "quadro", "stampa", "canvas", "lampada",
+  // Casa
+  "tazza", "mug", "borraccia", "tappetino",
+  // Borse
   "zaino", "borsa", "borsetta", "portafoglio",
+  // Gioielli
   "ciondolo", "collana", "bracciale", "orecchini",
+  // Libri / fumetti
   "fumetto", "manga", "libro",
-  "lampada", "tazza", "tappetino",
+  // Medaglie / monete
+  "medaglia", "medal", "moneta", "coin",
+  // Portachiavi / spille
+  "portachiavi", "keychain", "spilla",
+  // Adesivi
+  "adesivo", "sticker",
+  // Bustine / booster / box prodotto (non carte singole)
+  "booster", "bustina", "display box",
+  // Raccoglitori / binder
+  "raccoglitore", "binder",
+  // Altro
+  "gadget", "puzzle",
 ];
 
 function delay(ms) {
@@ -204,7 +230,7 @@ async function searchVinted(keyword) {
 
     try {
       const res = await axios.get(url, {
-        params: { search_text: keyword },
+        params: { search_text: keyword, per_page: 96 },
         timeout: 12000,
         headers: {
           "User-Agent": currentUA,
@@ -286,9 +312,16 @@ async function checkVinted() {
     for (let config of KEYWORDS_CONFIG) {
       const keyword = config.search;
       const mustContain = config.must_contain || [];
-      const items = await searchVinted(keyword);
 
-      if (items.length === 0) console.log(`ℹ️ 0 articoli per "${keyword}"`);
+      // Usa solo i termini specifici per la ricerca API (senza "pokemon"):
+      // molti venditori non scrivono "Pokemon" nel titolo, e Vinted trova più
+      // risultati con termini brevi e mirati (es. "rayquaza gold star").
+      const specificTerms = mustContain.filter(w => w !== "pokemon");
+      const apiQuery = specificTerms.length > 0 ? specificTerms.join(" ") : keyword;
+
+      const items = await searchVinted(apiQuery);
+
+      if (items.length === 0) console.log(`ℹ️ 0 articoli per "${keyword}" (query: "${apiQuery}"`);
 
       for (const item of items) {
         const articleId = item.id;
