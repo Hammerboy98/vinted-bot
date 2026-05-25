@@ -304,6 +304,9 @@ async function checkVinted() {
         const isRelevant = mustContain.every((word) => titleNorm.includes(normalize(word)));
         if (!isRelevant) continue;
 
+        // Scarta titoli con "no" come parola intera (es. "no charizard gold star")
+        if (/\bno\b/i.test(item.title)) continue;
+
         // Scarta tutto ciò che non è una carta (peluche, custodie, vestiti, ecc.)
         const isNotCard = EXCLUDE_TERMS.some((term) => fullContent.includes(normalize(term)));
         if (isNotCard) continue;
