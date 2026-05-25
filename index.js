@@ -105,6 +105,88 @@ function randomDelay(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
+function normalize(s) {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+// Parole che identificano set/tipo carta (non nomi di Pokémon)
+const SET_WORDS = new Set([
+  "gold", "star", "shining", "crystal", "neo", "destiny", "genesis",
+  "shadowless", "base", "illustrator", "trophy", "tropical",
+  "skyridge", "aquapolis", "expedition", "platinum", "supreme", "victors",
+  "trainer", "1st", "edition",
+]);
+
+// Alias multilingua per i set identifier — consente di trovare annunci in qualsiasi lingua
+const SET_ALIASES = {
+  "gold star": [
+    "goldstar", "gold-star",
+    "stella d'oro", "stella dorata",
+    "etoile or", "etoile doree",
+    "goldener stern", "goldstern",
+    "estrella dorada", "estrella de oro",
+    "estrela dourada",
+  ],
+  "shining": [
+    "brillant", "brillante", "glanzend", "strahlend", "lucente",
+  ],
+  "crystal": [
+    "cristallo", "cristal", "kristall",
+  ],
+  "shadowless": ["senza ombra", "sans ombre", "shadowles"],
+  "illustrator": ["illustrateur", "illustratore"],
+  "trophy": ["trofeo", "trophee"],
+};
+
+// Genera tutte le varianti di query per un keyword config (multilingua)
+function buildQueryVariants(mustContain) {
+  const specific = mustContain.filter(w => w !== "pokemon");
+  if (specific.length === 0) return [mustContain.join(" ")];
+
+  const queries = new Set();
+  queries.add(specific.join(" ")); // query principale
+
+  const pokemonTerms = specific.filter(w => !SET_WORDS.has(w));
+  const setTerms    = specific.filter(w => SET_WORDS.has(w));
+
+  // Per ogni frase di set conosciuta, aggiungi varianti multilingua
+  for (const [phrase, aliases] of Object.entries(SET_ALIASES)) {
+    const pWords = phrase.split(" ");
+    if (pWords.every(w => setTerms.includes(w))) {
+      for (const alias of aliases) {
+        const q = [...pokemonTerms, alias].filter(Boolean).join(" ");
+        if (q.trim()) queries.add(q.trim());
+      }
+    }
+  }
+
+  return [...queries];
+}
+
+// Controlla se il titolo soddisfa il must_contain, accettando alias multilingua
+function titleMatchesMustContain(titleNorm, mustContain) {
+  const remaining = mustContain.filter(w => w !== "pokemon"); // "pokemon" opzionale nel titolo
+
+  // Controlla prima le frasi composte con alias (es. "gold star" → "stella d'oro")
+  for (const [phrase, aliases] of Object.entries(SET_ALIASES)) {
+    const pWords = phrase.split(" ");
+    if (pWords.every(w => remaining.includes(w))) {
+      const variants = [phrase, ...aliases].map(a => normalize(a));
+      if (variants.some(v => titleNorm.includes(v))) {
+        // Frase trovata (in qualsiasi lingua): rimuovi le parole da remaining
+        for (const w of pWords) {
+          const idx = remaining.indexOf(w);
+          if (idx !== -1) remaining.splice(idx, 1);
+        }
+      }
+      // Se non trovata, le parole restano in remaining e il check successivo le fallirà
+    }
+  }
+
+  // Controlla le parole rimanenti singolarmente
+  return remaining.every(w => titleNorm.includes(normalize(w)));
+}
+
 // ============================================================
 // REFRESH SESSIONE — Puppeteer + Stealth (bypassa Cloudflare)
 // Mutex: se un refresh è già in corso, aspetta quello invece di
@@ -215,7 +297,7 @@ async function _execRefresh() {
 // ============================================================
 // RICERCA API — Retry su 401 / 403 / 429 con backoff esponenziale
 // ============================================================
-async function searchVinted(keyword) {
+async function searchVinted(keyword, page = 1) {
   const url = "https://www.vinted.it/api/v2/catalog/items";
 
   if (!VINTED_COOKIE_STRING || !VINTED_CSRF_TOKEN) {
@@ -230,7 +312,7 @@ async function searchVinted(keyword) {
 
     try {
       const res = await axios.get(url, {
-        params: { search_text: keyword, per_page: 96 },
+        params: { search_text: keyword, per_page: 96, page, order: "newest_first" },
         timeout: 12000,
         headers: {
           "User-Agent": currentUA,
@@ -300,6 +382,24 @@ async function searchVinted(keyword) {
   return [];
 }
 
+// Recupera TUTTE le pagine di risultati per una query (max 5 pagine = 480 articoli)
+async function fetchAllPages(searchText) {
+  const results = new Map();
+  let page = 1;
+  const MAX_PAGES = 5;
+
+  while (page <= MAX_PAGES) {
+    const items = await searchVinted(searchText, page);
+    if (!items || items.length === 0) break;
+    for (const item of items) results.set(item.id, item);
+    if (items.length < 96) break; // ultima pagina
+    page++;
+    await delay(randomDelay(800, 1500));
+  }
+
+  return [...results.values()];
+}
+
 // ============================================================
 // CICLO PRINCIPALE
 // ============================================================
@@ -313,29 +413,29 @@ async function checkVinted() {
       const keyword = config.search;
       const mustContain = config.must_contain || [];
 
-      // Usa solo i termini specifici per la ricerca API (senza "pokemon"):
-      // molti venditori non scrivono "Pokemon" nel titolo, e Vinted trova più
-      // risultati con termini brevi e mirati (es. "rayquaza gold star").
-      const specificTerms = mustContain.filter(w => w !== "pokemon");
-      const apiQuery = specificTerms.length > 0 ? specificTerms.join(" ") : keyword;
+      // Genera tutte le varianti di query (multilingua) e raccoglie item unici con paginazione completa
+      const queryVariants = buildQueryVariants(mustContain);
+      console.log(`🔎 "${keyword}" → varianti: ${queryVariants.join(" | ")}`);
 
-      const items = await searchVinted(apiQuery);
+      const allItemsMap = new Map();
+      for (let i = 0; i < queryVariants.length; i++) {
+        const pageItems = await fetchAllPages(queryVariants[i]);
+        for (const item of pageItems) allItemsMap.set(item.id, item);
+        if (i < queryVariants.length - 1) await delay(randomDelay(2000, 3000));
+      }
+      const items = [...allItemsMap.values()];
 
-      if (items.length === 0) console.log(`ℹ️ 0 articoli per "${keyword}" (query: "${apiQuery}"`);
+      console.log(`📦 ${items.length} articoli totali per "${keyword}"`);
 
       for (const item of items) {
         const articleId = item.id;
         const link = `https://www.vinted.it/items/${articleId}`;
 
-        const normalize = (s) =>
-          s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-
-        const titleNorm = normalize(item.title);
+        const titleNorm  = normalize(item.title);
         const fullContent = normalize(`${item.title} ${item.description || ""}`);
 
-        // Tutte le parole devono comparire nel TITOLO (non nella descrizione)
-        const isRelevant = mustContain.every((word) => titleNorm.includes(normalize(word)));
-        if (!isRelevant) continue;
+        // Controlla must_contain nel TITOLO, con supporto alias multilingua
+        if (!titleMatchesMustContain(titleNorm, mustContain)) continue;
 
         // Scarta titoli con "no" come parola intera (es. "no charizard gold star")
         if (/\bno\b/i.test(item.title)) continue;
@@ -370,7 +470,7 @@ async function checkVinted() {
         }
       }
 
-      const waitTime = randomDelay(10000, 20000);
+      const waitTime = randomDelay(5000, 10000);
       console.log(`⏳ Prossima keyword tra ${waitTime / 1000}s...`);
       await delay(waitTime);
     }
