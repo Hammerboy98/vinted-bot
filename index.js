@@ -70,9 +70,13 @@ const EXCLUDE_TERMS = [
   "console", "cartuccia",
   // Accessori elettronici
   "custodia", "cover", "case", "pellicola", "vetro temperato",
-  // Abbigliamento
+  // Abbigliamento / calzature
   "maglietta", "t-shirt", "felpa", "hoodie", "cappello", "costume", "pigiama",
   "calzini", "socks", "scarpe",
+  "sandali", "sandalo", "sandales", "sandalen", "sandal",
+  "ciabatte", "ciabatta", "ciabattine",
+  "infradito", "claquettes", "slippers",
+  "sneaker", "scarpa",
   // Decorazioni / arte
   "poster", "quadro", "stampa", "canvas", "lampada",
   // Casa
@@ -120,7 +124,6 @@ const SET_WORDS = new Set([
 // Alias multilingua per i set identifier — consente di trovare annunci in qualsiasi lingua
 const SET_ALIASES = {
   "gold star": [
-    "goldstar", "gold-star",
     "stella d'oro", "stella dorata",
     "etoile or", "etoile doree",
     "goldener stern", "goldstern",
@@ -149,13 +152,16 @@ function buildQueryVariants(mustContain) {
   const pokemonTerms = specific.filter(w => !SET_WORDS.has(w));
   const setTerms    = specific.filter(w => SET_WORDS.has(w));
 
-  // Per ogni frase di set conosciuta, aggiungi varianti multilingua
-  for (const [phrase, aliases] of Object.entries(SET_ALIASES)) {
-    const pWords = phrase.split(" ");
-    if (pWords.every(w => setTerms.includes(w))) {
-      for (const alias of aliases) {
-        const q = [...pokemonTerms, alias].filter(Boolean).join(" ");
-        if (q.trim()) queries.add(q.trim());
+  // Alias multilingua SOLO se c'è un nome Pokémon come ancora:
+  // senza di esso, query come "stella d'oro" da sola trova collane, vestiti, ecc.
+  if (pokemonTerms.length > 0) {
+    for (const [phrase, aliases] of Object.entries(SET_ALIASES)) {
+      const pWords = phrase.split(" ");
+      if (pWords.every(w => setTerms.includes(w))) {
+        for (const alias of aliases) {
+          const q = [...pokemonTerms, alias].filter(Boolean).join(" ");
+          if (q.trim()) queries.add(q.trim());
+        }
       }
     }
   }
@@ -171,7 +177,8 @@ function titleMatchesMustContain(titleNorm, mustContain) {
   for (const [phrase, aliases] of Object.entries(SET_ALIASES)) {
     const pWords = phrase.split(" ");
     if (pWords.every(w => remaining.includes(w))) {
-      const variants = [phrase, ...aliases].map(a => normalize(a));
+      // "goldstar" come parola unica è accettata solo nel title-check, non come query
+      const variants = [phrase, "goldstar", "gold-star", ...aliases].map(a => normalize(a));
       if (variants.some(v => titleNorm.includes(v))) {
         // Frase trovata (in qualsiasi lingua): rimuovi le parole da remaining
         for (const w of pWords) {
@@ -183,8 +190,15 @@ function titleMatchesMustContain(titleNorm, mustContain) {
     }
   }
 
-  // Controlla le parole rimanenti singolarmente
-  return remaining.every(w => titleNorm.includes(normalize(w)));
+  // Controlla le parole rimanenti:
+  // - SET_WORDS usano word boundary (\b) per evitare match parziali
+  //   ("gold" non matcha "golden", "star" non matcha "vstar")
+  // - Nomi Pokémon usano includes() normale
+  return remaining.every(w => {
+    const n = normalize(w);
+    if (SET_WORDS.has(w)) return new RegExp(`\\b${n}\\b`).test(titleNorm);
+    return titleNorm.includes(n);
+  });
 }
 
 // ============================================================
