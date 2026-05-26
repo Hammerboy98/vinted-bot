@@ -107,7 +107,7 @@ const botStats = {
   lastCheckTime: null,
   itemsFoundToday: 0,
   lastResetDate: new Date().toDateString(),
-  vintedEnabled: !!(VINTED_COOKIE_STRING && VINTED_CSRF_TOKEN),
+  vintedEnabled: true,
   ebayEnabled: !!EBAY_APP_ID,
   isRunning: false,
 };
@@ -205,7 +205,14 @@ async function _execRefresh() {
 // VINTED SEARCH
 // ============================================================
 async function searchVinted(keyword) {
-  if (!VINTED_COOKIE_STRING || !VINTED_CSRF_TOKEN) return [];
+  if (!VINTED_COOKIE_STRING || !VINTED_CSRF_TOKEN) {
+    console.warn("⚠️ Cookie Vinted mancanti, avvio refresh preventivo...");
+    const ok = await refreshVintedSession();
+    if (!ok) {
+      console.error("🔴 Refresh fallito, skip Vinted.");
+      return [];
+    }
+  }
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -387,6 +394,10 @@ async function checkAll() {
 // ============================================================
 // LOOP OGNI 15 MINUTI
 // ============================================================
+process.on("unhandledRejection", (reason) => {
+  console.error("❌ Unhandled rejection:", reason);
+});
+
 (async () => {
   await checkAll();
   while (true) {
@@ -426,7 +437,8 @@ app.use(
 // ============================================================
 const requireAuth = (req, res, next) => {
   if (req.session.authenticated) return next();
-  if (req.path.startsWith("/api/")) return res.status(401).json({ error: "Non autorizzato." });
+  const wantsJson = req.path.includes("/api/") || req.headers.accept?.includes("application/json");
+  if (wantsJson) return res.status(401).json({ error: "Non autorizzato." });
   res.redirect("/panel/login");
 };
 
