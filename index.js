@@ -119,6 +119,9 @@ const botStats = {
   isRunning: false,
 };
 
+const MAX_FOUND_ITEMS = 500;
+const foundItems = [];
+
 // ============================================================
 // UTILITIES
 // ============================================================
@@ -370,6 +373,17 @@ async function checkAll() {
             ? `${item.price.amount} ${item.price.currency || "€"}`
             : "N/D";
 
+          foundItems.unshift({
+            platform: "vinted",
+            title: item.title,
+            price: priceDisplay,
+            link,
+            keyword,
+            image: item.photo?.url || null,
+            foundAt: new Date().toISOString(),
+          });
+          if (foundItems.length > MAX_FOUND_ITEMS) foundItems.length = MAX_FOUND_ITEMS;
+
           const caption = `🟣 *[VINTED]* Nuovo Articolo!\n🔎 Keyword: ${keyword}\n\n📛 *${item.title}*\n💰 *Prezzo:* ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
           await sendNotification(caption, item.photo?.url);
           console.log("📨 [Vinted]", item.title);
@@ -398,6 +412,17 @@ async function checkAll() {
           const priceVal = item.sellingStatus?.[0]?.currentPrice?.[0]?.["__value__"];
           const priceCurr = item.sellingStatus?.[0]?.currentPrice?.[0]?.["@currencyId"] || "EUR";
           const priceDisplay = priceVal ? `${priceVal} ${priceCurr}` : "N/D";
+
+          foundItems.unshift({
+            platform: "ebay",
+            title,
+            price: priceDisplay,
+            link,
+            keyword,
+            image: item.galleryURL?.[0] || null,
+            foundAt: new Date().toISOString(),
+          });
+          if (foundItems.length > MAX_FOUND_ITEMS) foundItems.length = MAX_FOUND_ITEMS;
 
           const caption = `🔵 *[EBAY]* Nuovo Articolo!\n🔎 Keyword: ${keyword}\n\n📛 *${title}*\n💰 *Prezzo:* ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
           await sendNotification(caption, item.galleryURL?.[0]);
@@ -546,6 +571,10 @@ app.post("/panel/api/run", requireAuth, (req, res) => {
   if (isRunning) return res.json({ ok: false, message: "Già in esecuzione." });
   checkAll();
   res.json({ ok: true, message: "Controllo avviato." });
+});
+
+app.get("/panel/api/items", requireAuth, (req, res) => {
+  res.json({ items: foundItems });
 });
 
 // ============================================================
