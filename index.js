@@ -1,7 +1,7 @@
 const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
-const session = require("express-session");
+const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
 const { addExtra } = require("puppeteer-extra");
@@ -23,8 +23,10 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 const PORT = process.env.PORT || 3000;
 const EBAY_APP_ID = process.env.EBAY_APP_ID || "";
-const PANEL_PASSWORD = process.env.PANEL_PASSWORD || "admin";
+const PANEL_PASSWORD = (process.env.PANEL_PASSWORD || "admin").trim();
 const SESSION_SECRET = process.env.SESSION_SECRET || "pokebot-secret-key";
+// Token stabile derivato da password+secret — cambia se la password cambia
+const PANEL_TOKEN = crypto.createHmac("sha256", SESSION_SECRET).update(PANEL_PASSWORD).digest("hex");
 
 if (!TELEGRAM_TOKEN || !CHAT_ID) {
   console.error("🛑 TELEGRAM_TOKEN e CHAT_ID sono obbligatori.");
@@ -333,8 +335,11 @@ async function checkAll() {
       // non serve "pokemon" nel titolo — il nome del Pokémon è abbastanza specifico.
       // Se i termini sono tutti generici (es. "gold star"), richiediamo "pokemon"
       // per evitare falsi positivi (scarpe, borse, ecc.).
-      const hasSpecificName = specificTerms.some((w) => !GENERIC_CARD_TERMS.has(w));
-      const titleTerms = hasSpecificName ? specificTerms : mustContain;
+      // Nomi specifici di Pokemon (es. rayquaza, charizard) — escludi termini generici di set
+      const pokemonNames = specificTerms.filter((w) => !GENERIC_CARD_TERMS.has(w));
+      // Se c'è almeno un nome Pokemon, basta che compaia nel titolo (il set lo gestisce l'API)
+      // Se sono solo termini generici (gold star, shining...), richiedi anche "pokemon" nel titolo
+      const titleTerms = pokemonNames.length > 0 ? pokemonNames : mustContain;
 
       console.log(`🔎 Cerco: "${keyword}"`);
 
@@ -445,44 +450,52 @@ const app = express();
 app.set("trust proxy", 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(
-  session({
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 },
-  })
-);
 
 // ============================================================
-// PANEL AUTH
+// PANEL AUTH (cookie diretta — no MemoryStore, nessuna race condition)
 // ============================================================
+function getPanelToken(req) {
+  const header = req.headers.cookie || "";
+  for (const part of header.split(";")) {
+    const eqIdx = part.indexOf("=");
+    if (eqIdx === -1) continue;
+    if (part.slice(0, eqIdx).trim() === "panel_auth") return part.slice(eqIdx + 1).trim();
+  }
+  return null;
+}
+
 const requireAuth = (req, res, next) => {
-  if (req.session.authenticated) return next();
+  if (getPanelToken(req) === PANEL_TOKEN) return next();
   const wantsJson = req.path.includes("/api/") || req.headers.accept?.includes("application/json");
   if (wantsJson) return res.status(401).json({ error: "Non autorizzato." });
   res.redirect("/panel/login");
 };
 
 app.get("/panel/login", (req, res) => {
-  if (req.session.authenticated) return res.redirect("/panel/");
+  if (getPanelToken(req) === PANEL_TOKEN) return res.redirect("/panel/");
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
 app.post("/panel/login", (req, res) => {
-  if (req.body.password === PANEL_PASSWORD) {
-    req.session.authenticated = true;
-    req.session.save((err) => {
-      if (err) console.error("❌ Session save error:", err);
-      res.redirect("/panel/");
+  const pwd = (req.body.password || "").trim();
+  if (pwd === PANEL_PASSWORD) {
+    const isHttps = req.secure || req.headers["x-forwarded-proto"] === "https";
+    res.cookie("panel_auth", PANEL_TOKEN, {
+      maxAge: 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: isHttps,
     });
-    return;
+    console.log("✅ Panel login OK");
+    return res.redirect("/panel/");
   }
+  console.warn("⚠️ Panel login fallito (password errata)");
   res.redirect("/panel/login?error=1");
 });
 
 app.get("/panel/logout", (req, res) => {
-  req.session.destroy(() => res.redirect("/panel/login"));
+  res.clearCookie("panel_auth");
+  res.redirect("/panel/login");
 });
 
 app.get("/panel", requireAuth, (req, res) => res.redirect("/panel/"));
