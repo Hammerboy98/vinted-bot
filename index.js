@@ -99,14 +99,6 @@ const EXCLUDE_TERMS = [
   "scarpa da ginnastica", "taglia", " tg ", " tg.", "size ",
 ];
 
-// Termini generici dei set Pokemon — non sono nomi Pokemon specifici.
-// Se la query API usa SOLO questi termini, richiediamo "pokemon" nel titolo
-// per evitare falsi positivi (es. scarpe "gold star").
-const GENERIC_CARD_TERMS = new Set([
-  "gold", "star", "shining", "crystal", "neo", "destiny", "genesis",
-  "skyridge", "aquapolis", "expedition", "shadowless", "base",
-  "illustrator", "trophy", "tropical", "trainer", "edition", "1st",
-]);
 
 // ============================================================
 // BOT STATE
@@ -133,6 +125,29 @@ const botStats = {
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 const randomDelay = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
 const normalize = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+// Ricava i termini di filtro dalla stringa di ricerca:
+// - tutti i numeri (incluso il singolo digit, es. "4" in "4/102")
+// - parole di 2+ caratteri (esclude lettere singole non numeriche)
+// - strip del # iniziale (es. "#107" → "107")
+function getSearchTerms(searchStr) {
+  return normalize(searchStr)
+    .split(/\s+/)
+    .map((w) => w.replace(/^#/, ""))
+    .filter((w) => (/^\d+$/.test(w) ? true : w.length >= 2));
+}
+
+// Verifica che il titolo contenga TUTTI i termini:
+// - per i numeri usa word boundary: "107" non matcha "1070" né "2107"
+// - per le parole usa substring normalizzato
+function titleMatchesAll(titleNorm, filterTerms) {
+  return filterTerms.every((w) => {
+    if (/^\d+$/.test(w)) {
+      return new RegExp(`(?<!\\d)${w}(?!\\d)`).test(titleNorm);
+    }
+    return titleNorm.includes(w);
+  });
+}
 
 function resetDailyStatsIfNeeded() {
   const today = new Date().toDateString();
@@ -328,17 +343,9 @@ async function checkAll() {
   try {
     for (const config of KEYWORDS_CONFIG) {
       const keyword = config.search;
-      const mustContain = config.must_contain || [];
-      const specificTerms = mustContain.filter((w) => w !== "pokemon");
-      // Nomi specifici di Pokémon (es. rayquaza, charizard): escludi termini generici di set
-      const pokemonNames = specificTerms.filter((w) => !GENERIC_CARD_TERMS.has(w));
-      // apiQuery: usa i termini del set per dare contesto a Vinted (es. "gold star rayquaza")
-      // così l'engine di Vinted filtra già per variante, evitando falsi positivi come "Rayquaza V"
-      const apiQuery = specificTerms.length > 0 ? specificTerms.join(" ") : keyword;
-      // Titolo: se c'è un nome Pokémon specifico, basta che compaia nel titolo
-      // (Vinted probabilmente indicizza ★ = "star", quindi l'API già filtra)
-      // Se solo termini generici, richiedi anche "pokemon" per evitare falsi positivi
-      const titleTerms = pokemonNames.length > 0 ? pokemonNames : mustContain;
+      // Tutti i termini del campo "search" devono essere presenti nel titolo
+      const filterTerms = getSearchTerms(keyword);
+      const apiQuery = keyword;
 
       console.log(`🔎 Cerco: "${keyword}"`);
 
@@ -352,8 +359,7 @@ async function checkAll() {
           const titleNorm = normalize(item.title);
           const fullContent = normalize(`${item.title} ${item.description || ""}`);
 
-          if (!titleTerms.every((w) => titleNorm.includes(normalize(w)))) continue;
-          if (/\bno\b/i.test(item.title)) continue;
+          if (!titleMatchesAll(titleNorm, filterTerms)) continue;
           if (EXCLUDE_TERMS.some((t) => fullContent.includes(normalize(t)))) continue;
           if (vintedNotifiedLinks.has(link)) continue;
 
@@ -382,8 +388,7 @@ async function checkAll() {
           if (!link || !itemId) continue;
 
           const titleNorm = normalize(title);
-          if (!titleTerms.every((w) => titleNorm.includes(normalize(w)))) continue;
-          if (/\bno\b/i.test(title)) continue;
+          if (!titleMatchesAll(titleNorm, filterTerms)) continue;
           if (EXCLUDE_TERMS.some((t) => titleNorm.includes(normalize(t)))) continue;
           if (ebayNotifiedIds.has(itemId)) continue;
 
@@ -594,7 +599,7 @@ bot.onText(/\/add (.+)/, (msg, match) => {
 
 bot.onText(/\/list/, (msg) => {
   if (!KEYWORDS_CONFIG.length) return bot.sendMessage(msg.chat.id, "📭 Nessuna keyword salvata.");
-  const list = KEYWORDS_CONFIG.map((k) => `• *${k.search}*\n  Filtri: ${k.must_contain.join(", ")}`).join("\n\n");
+  const list = KEYWORDS_CONFIG.map((k) => `• *${k.search}*`).join("\n");
   bot.sendMessage(msg.chat.id, `📜 *Lista keyword:*\n\n${list}`, { parse_mode: "Markdown" });
 });
 

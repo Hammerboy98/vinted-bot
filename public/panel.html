@@ -212,7 +212,7 @@ async function fetchKeywords() {
 
 function renderKeywords() {
   const filter = document.getElementById('searchFilter').value.toLowerCase();
-  const filtered = allKeywords.filter(k => k.search.includes(filter) || k.must_contain.join(' ').includes(filter));
+  const filtered = allKeywords.filter(k => k.search.includes(filter) || (k.must_contain || []).join(' ').includes(filter));
   const tbody = document.getElementById('kwBody');
 
   if (!filtered.length) {
@@ -223,7 +223,7 @@ function renderKeywords() {
 
   tbody.innerHTML = filtered.map(k => {
     const esc = k.search.replace(/'/g, "\\'");
-    const badges = k.must_contain.map(f => '<span class="badge">'+f+'</span>').join('');
+    const badges = (k.must_contain || []).map(f => '<span class="badge">'+f+'</span>').join('');
     return '<tr><td><strong>'+k.search+'</strong></td><td>'+badges+'</td><td><button class="btn btn-red" onclick="removeKeyword(\''+esc+'\')">Rimuovi</button></td></tr>';
   }).join('');
 
