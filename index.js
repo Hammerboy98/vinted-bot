@@ -1,7 +1,7 @@
 const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
-const crypto = require("crypto");
+const crypto = require("crypto"); // usato solo per HMAC panel token se necessario
 const path = require("path");
 const fs = require("fs");
 const { addExtra } = require("puppeteer-extra");
@@ -25,8 +25,6 @@ const PORT = process.env.PORT || 3000;
 const EBAY_APP_ID = process.env.EBAY_APP_ID || "";
 const PANEL_PASSWORD = (process.env.PANEL_PASSWORD || "admin").trim();
 const SESSION_SECRET = process.env.SESSION_SECRET || "pokebot-secret-key";
-// Token stabile derivato da password+secret — cambia se la password cambia
-const PANEL_TOKEN = crypto.createHmac("sha256", SESSION_SECRET).update(PANEL_PASSWORD).digest("hex");
 
 if (!TELEGRAM_TOKEN || !CHAT_ID) {
   console.error("🛑 TELEGRAM_TOKEN e CHAT_ID sono obbligatori.");
@@ -330,15 +328,14 @@ async function checkAll() {
       const keyword = config.search;
       const mustContain = config.must_contain || [];
       const specificTerms = mustContain.filter((w) => w !== "pokemon");
-      const apiQuery = specificTerms.length > 0 ? specificTerms.join(" ") : keyword;
-      // Se specificTerms include almeno un nome Pokémon (non un termine generico di set),
-      // non serve "pokemon" nel titolo — il nome del Pokémon è abbastanza specifico.
-      // Se i termini sono tutti generici (es. "gold star"), richiediamo "pokemon"
-      // per evitare falsi positivi (scarpe, borse, ecc.).
-      // Nomi specifici di Pokemon (es. rayquaza, charizard) — escludi termini generici di set
+      // Nomi specifici di Pokémon (es. rayquaza, charizard): escludi termini generici di set
       const pokemonNames = specificTerms.filter((w) => !GENERIC_CARD_TERMS.has(w));
-      // Se c'è almeno un nome Pokemon, basta che compaia nel titolo (il set lo gestisce l'API)
-      // Se sono solo termini generici (gold star, shining...), richiedi anche "pokemon" nel titolo
+      // apiQuery: usa i termini del set per dare contesto a Vinted (es. "gold star rayquaza")
+      // così l'engine di Vinted filtra già per variante, evitando falsi positivi come "Rayquaza V"
+      const apiQuery = specificTerms.length > 0 ? specificTerms.join(" ") : keyword;
+      // Titolo: se c'è un nome Pokémon specifico, basta che compaia nel titolo
+      // (Vinted probabilmente indicizza ★ = "star", quindi l'API già filtra)
+      // Se solo termini generici, richiedi anche "pokemon" per evitare falsi positivi
       const titleTerms = pokemonNames.length > 0 ? pokemonNames : mustContain;
 
       console.log(`🔎 Cerco: "${keyword}"`);
@@ -452,50 +449,37 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ============================================================
-// PANEL AUTH (cookie diretta — no MemoryStore, nessuna race condition)
+// PANEL AUTH — HTTP Basic Auth (nessun cookie, nessun redirect loop)
 // ============================================================
-function getPanelToken(req) {
-  const header = req.headers.cookie || "";
-  for (const part of header.split(";")) {
-    const eqIdx = part.indexOf("=");
-    if (eqIdx === -1) continue;
-    if (part.slice(0, eqIdx).trim() === "panel_auth") return part.slice(eqIdx + 1).trim();
-  }
-  return null;
-}
-
 const requireAuth = (req, res, next) => {
-  if (getPanelToken(req) === PANEL_TOKEN) return next();
+  const auth = req.headers.authorization || "";
+  if (auth.startsWith("Basic ")) {
+    const decoded = Buffer.from(auth.slice(6), "base64").toString();
+    const sep = decoded.indexOf(":");
+    if (sep !== -1 && decoded.slice(sep + 1) === PANEL_PASSWORD) return next();
+  }
   const wantsJson = req.path.includes("/api/") || req.headers.accept?.includes("application/json");
-  if (wantsJson) return res.status(401).json({ error: "Non autorizzato." });
-  res.redirect("/panel/login");
+  if (wantsJson) {
+    res.set("WWW-Authenticate", 'Basic realm="PokéBot"');
+    return res.status(401).json({ error: "Non autorizzato." });
+  }
+  res.set("WWW-Authenticate", 'Basic realm="PokéBot Panel"');
+  res.status(401).send(
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>PokéBot — Login</title>' +
+    '<style>body{min-height:100vh;display:flex;align-items:center;justify-content:center;' +
+    'background:#0d1117;font-family:system-ui,sans-serif;color:#c9d1d9;text-align:center}' +
+    'h1{margin-bottom:.5rem}p{color:#8b949e}</style></head>' +
+    '<body><div><h1>🎮 PokéBot Panel</h1>' +
+    '<p>Il browser mostrerà una finestra di login.<br>Lascia vuoto il campo "Utente" e inserisci la password.</p>' +
+    "</div></body></html>"
+  );
 };
 
-app.get("/panel/login", (req, res) => {
-  if (getPanelToken(req) === PANEL_TOKEN) return res.redirect("/panel/");
-  res.sendFile(path.join(__dirname, "public", "login.html"));
-});
-
-app.post("/panel/login", (req, res) => {
-  const pwd = (req.body.password || "").trim();
-  if (pwd === PANEL_PASSWORD) {
-    const isHttps = req.secure || req.headers["x-forwarded-proto"] === "https";
-    res.cookie("panel_auth", PANEL_TOKEN, {
-      maxAge: 24 * 60 * 60 * 1000,
-      httpOnly: true,
-      sameSite: "lax",
-      secure: isHttps,
-    });
-    console.log("✅ Panel login OK");
-    return res.redirect("/panel/");
-  }
-  console.warn("⚠️ Panel login fallito (password errata)");
-  res.redirect("/panel/login?error=1");
-});
-
+// /panel/login non è più necessario — il browser gestisce tutto
+app.get("/panel/login", (req, res) => res.redirect("/panel/"));
 app.get("/panel/logout", (req, res) => {
-  res.clearCookie("panel_auth");
-  res.redirect("/panel/login");
+  // Basic Auth non ha logout standard; redirect al pannello
+  res.redirect("/panel/");
 });
 
 app.get("/panel", requireAuth, (req, res) => res.redirect("/panel/"));
