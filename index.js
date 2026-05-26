@@ -317,6 +317,8 @@ async function checkAll() {
       const specificTerms = mustContain.filter((w) => w !== "pokemon");
       const apiQuery = specificTerms.length > 0 ? specificTerms.join(" ") : keyword;
 
+      console.log(`🔎 Cerco: "${keyword}"`);
+
       // --- VINTED ---
       if (botStats.vintedEnabled) {
         const items = await searchVinted(apiQuery);
@@ -421,6 +423,7 @@ setInterval(() => {
 // EXPRESS
 // ============================================================
 const app = express();
+app.set("trust proxy", 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(
@@ -450,7 +453,11 @@ app.get("/panel/login", (req, res) => {
 app.post("/panel/login", (req, res) => {
   if (req.body.password === PANEL_PASSWORD) {
     req.session.authenticated = true;
-    return res.redirect("/panel/");
+    req.session.save((err) => {
+      if (err) console.error("❌ Session save error:", err);
+      res.redirect("/panel/");
+    });
+    return;
   }
   res.redirect("/panel/login?error=1");
 });
