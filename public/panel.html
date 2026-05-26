@@ -95,6 +95,13 @@ tr:last-child td{border-bottom:none}
 /* FOOTER COUNT */
 .tbl-footer{font-size:0.75rem;color:#8b949e;margin-top:0.75rem;text-align:right}
 
+/* PAGINATION */
+.pagination{display:flex;align-items:center;justify-content:center;gap:0.6rem;margin-top:1rem}
+.pg-btn{padding:0.3rem 0.7rem;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;cursor:pointer;font-size:0.82rem;font-weight:600;transition:background .15s}
+.pg-btn:hover:not([disabled]){background:#30363d}
+.pg-btn[disabled]{opacity:.35;cursor:not-allowed}
+.pg-info{color:#8b949e;font-size:0.82rem;min-width:90px;text-align:center}
+
 @media(max-width:600px){
   .cards{grid-template-columns:1fr 1fr}
   .platforms{flex-direction:column;align-items:flex-start}
@@ -155,7 +162,7 @@ tr:last-child td{border-bottom:none}
     <!-- TAB: KEYWORDS -->
     <div class="tab-pane active" id="pane-kw">
       <div class="filter-bar">
-        <input id="kwFilter" placeholder="🔍 Cerca keyword..." oninput="renderKeywords()">
+        <input id="kwFilter" placeholder="🔍 Cerca keyword..." oninput="kwPage=1;renderKeywords()">
         <button class="btn btn-purple filter-bar-right" onclick="openModal()">+ Aggiungi keyword</button>
       </div>
       <table>
@@ -170,13 +177,14 @@ tr:last-child td{border-bottom:none}
         </tbody>
       </table>
       <div class="tbl-footer" id="kwFooter"></div>
+      <div class="pagination" id="kwPagination"></div>
     </div>
 
     <!-- TAB: ARTICOLI TROVATI -->
     <div class="tab-pane" id="pane-items">
       <div class="filter-bar">
-        <input id="itemFilter" placeholder="🔍 Cerca per titolo o keyword..." oninput="renderItems()">
-        <select id="itemPlatform" onchange="renderItems()">
+        <input id="itemFilter" placeholder="🔍 Cerca per titolo o keyword..." oninput="itemsPage=1;renderItems()">
+        <select id="itemPlatform" onchange="itemsPage=1;renderItems()">
           <option value="">Tutte le piattaforme</option>
           <option value="vinted">🟣 Vinted</option>
           <option value="ebay">🔵 eBay</option>
@@ -197,6 +205,7 @@ tr:last-child td{border-bottom:none}
         </tbody>
       </table>
       <div class="tbl-footer" id="itemsFooter"></div>
+      <div class="pagination" id="itemsPagination"></div>
     </div>
   </div>
 
@@ -227,6 +236,9 @@ if (!PANEL_TOKEN) { location.href = '/panel/login'; }
 let allKeywords = [];
 let allItems = [];
 let activeTab = 'kw';
+let kwPage = 1;
+let itemsPage = 1;
+const PAGE_SIZE = 15;
 
 // ── API helper ──────────────────────────────────────────────
 async function api(method, url, body) {
@@ -302,6 +314,16 @@ async function runNow() {
   else showToast(d.message, true);
 }
 
+// ── PAGINATION HELPER ────────────────────────────────────────
+function renderPagination(containerId, currentPage, totalPages, onPageFn) {
+  const el = document.getElementById(containerId);
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML =
+    '<button class="pg-btn" ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="' + onPageFn + '(' + (currentPage - 1) + ')">← Prec</button>'
+    + '<span class="pg-info">Pagina ' + currentPage + ' di ' + totalPages + '</span>'
+    + '<button class="pg-btn" ' + (currentPage >= totalPages ? 'disabled' : '') + ' onclick="' + onPageFn + '(' + (currentPage + 1) + ')">Succ →</button>';
+}
+
 // ── KEYWORDS ────────────────────────────────────────────────
 async function fetchKeywords() {
   const d = await api('GET', '/panel/api/keywords');
@@ -310,30 +332,41 @@ async function fetchKeywords() {
   renderKeywords();
 }
 
+function goKwPage(n) { kwPage = n; renderKeywords(); }
+
 function renderKeywords() {
   const q = document.getElementById('kwFilter').value.toLowerCase().trim();
   const filtered = q
     ? allKeywords.filter(k => k.search.toLowerCase().includes(q))
     : allKeywords;
   const tbody = document.getElementById('kwBody');
+
   if (!filtered.length) {
     tbody.innerHTML = '<tr><td colspan="2" class="empty">' + (allKeywords.length ? 'Nessuna keyword corrisponde.' : 'Nessuna keyword configurata.') + '</td></tr>';
     document.getElementById('kwFooter').textContent = '';
+    document.getElementById('kwPagination').innerHTML = '';
     return;
   }
-  tbody.innerHTML = filtered.map(k => {
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  if (kwPage > totalPages) kwPage = totalPages;
+  const slice = filtered.slice((kwPage - 1) * PAGE_SIZE, kwPage * PAGE_SIZE);
+
+  tbody.innerHTML = slice.map(k => {
     const esc = k.search.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return '<tr><td><strong>' + k.search + '</strong></td>'
       + '<td><button class="btn-red" onclick="removeKeyword(\'' + esc + '\')">Rimuovi</button></td></tr>';
   }).join('');
-  document.getElementById('kwFooter').textContent = filtered.length + ' / ' + allKeywords.length + ' keyword';
+
+  document.getElementById('kwFooter').textContent = filtered.length + ' keyword totali';
+  renderPagination('kwPagination', kwPage, totalPages, 'goKwPage');
 }
 
 async function removeKeyword(search) {
   if (!confirm('Rimuovere "' + search + '"?')) return;
   const d = await api('DELETE', '/panel/api/keywords', { search });
   if (!d) return;
-  if (d.ok) { showToast('Keyword rimossa.'); await fetchKeywords(); await fetchStatus(); }
+  if (d.ok) { showToast('Keyword rimossa.'); kwPage = 1; await fetchKeywords(); await fetchStatus(); }
   else showToast(d.error || 'Errore', true);
 }
 
@@ -390,6 +423,8 @@ async function fetchItems() {
   renderItems();
 }
 
+function goItemsPage(n) { itemsPage = n; renderItems(); }
+
 function renderItems() {
   const q = document.getElementById('itemFilter').value.toLowerCase().trim();
   const platform = document.getElementById('itemPlatform').value;
@@ -399,12 +434,19 @@ function renderItems() {
     return true;
   });
   const tbody = document.getElementById('itemsBody');
+
   if (!filtered.length) {
     tbody.innerHTML = '<tr><td colspan="5" class="empty">' + (allItems.length ? 'Nessun articolo corrisponde al filtro.' : 'Nessun articolo trovato ancora. Il bot inizierà a popolare questa lista al prossimo controllo.') + '</td></tr>';
     document.getElementById('itemsFooter').textContent = '';
+    document.getElementById('itemsPagination').innerHTML = '';
     return;
   }
-  tbody.innerHTML = filtered.map(it => {
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  if (itemsPage > totalPages) itemsPage = totalPages;
+  const slice = filtered.slice((itemsPage - 1) * PAGE_SIZE, itemsPage * PAGE_SIZE);
+
+  tbody.innerHTML = slice.map(it => {
     const platBadge = it.platform === 'vinted'
       ? '<span class="badge badge-vinted">🟣 Vinted</span>'
       : '<span class="badge badge-ebay">🔵 eBay</span>';
@@ -423,7 +465,9 @@ function renderItems() {
       + '<td style="color:#8b949e;font-size:0.8rem;white-space:nowrap">' + time + '</td>'
       + '</tr>';
   }).join('');
-  document.getElementById('itemsFooter').textContent = filtered.length + ' / ' + allItems.length + ' articoli';
+
+  document.getElementById('itemsFooter').textContent = filtered.length + ' articoli totali';
+  renderPagination('itemsPagination', itemsPage, totalPages, 'goItemsPage');
 }
 
 // ── INIT ─────────────────────────────────────────────────────
