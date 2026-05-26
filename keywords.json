@@ -1,63 +1,132 @@
 {
   "keywords": [
     {"search": "Pokemon Gold Star", "must_contain": ["pokemon", "gold", "star"]},
+
     {"search": "Pokemon Gold Star Rayquaza", "must_contain": ["pokemon", "gold", "star", "rayquaza"]},
+    {"search": "Rayquaza EX Deoxys 107", "must_contain": ["rayquaza"]},
+    {"search": "Rayquaza Dragon Frontiers 102", "must_contain": ["rayquaza"]},
+
     {"search": "Pokemon Gold Star Umbreon", "must_contain": ["pokemon", "gold", "star", "umbreon"]},
+    {"search": "Umbreon POP Series 5 17", "must_contain": ["umbreon"]},
+
     {"search": "Pokemon Gold Star Espeon", "must_contain": ["pokemon", "gold", "star", "espeon"]},
+    {"search": "Espeon POP Series 5 16", "must_contain": ["espeon"]},
+
     {"search": "Pokemon Gold Star Charizard", "must_contain": ["pokemon", "gold", "star", "charizard"]},
+    {"search": "Charizard Dragon Frontiers 100", "must_contain": ["charizard"]},
+
     {"search": "Pokemon Gold Star Mewtwo", "must_contain": ["pokemon", "gold", "star", "mewtwo"]},
+    {"search": "Mewtwo Holon Phantoms 103", "must_contain": ["mewtwo"]},
+
     {"search": "Pokemon Gold Star Pikachu", "must_contain": ["pokemon", "gold", "star", "pikachu"]},
+    {"search": "Pikachu Holon Phantoms 104", "must_contain": ["pikachu"]},
+
     {"search": "Pokemon Gold Star Vaporeon", "must_contain": ["pokemon", "gold", "star", "vaporeon"]},
+    {"search": "Vaporeon POP Series 6", "must_contain": ["vaporeon"]},
+
     {"search": "Pokemon Gold Star Flareon", "must_contain": ["pokemon", "gold", "star", "flareon"]},
+    {"search": "Flareon POP Series 6", "must_contain": ["flareon"]},
+
     {"search": "Pokemon Gold Star Jolteon", "must_contain": ["pokemon", "gold", "star", "jolteon"]},
+    {"search": "Jolteon POP Series 6", "must_contain": ["jolteon"]},
+
     {"search": "Pokemon Gold Star Suicune", "must_contain": ["pokemon", "gold", "star", "suicune"]},
+    {"search": "Suicune Crystal Guardians 102", "must_contain": ["suicune"]},
+
     {"search": "Pokemon Gold Star Raikou", "must_contain": ["pokemon", "gold", "star", "raikou"]},
+    {"search": "Raikou Unseen Forces 114", "must_contain": ["raikou"]},
+
     {"search": "Pokemon Gold Star Entei", "must_contain": ["pokemon", "gold", "star", "entei"]},
+    {"search": "Entei Unseen Forces 115", "must_contain": ["entei"]},
+
     {"search": "Pokemon Gold Star Celebi", "must_contain": ["pokemon", "gold", "star", "celebi"]},
+    {"search": "Celebi Crystal Guardians 100", "must_contain": ["celebi"]},
+
     {"search": "Pokemon Gold Star Regirock", "must_contain": ["pokemon", "gold", "star", "regirock"]},
+    {"search": "Regirock Legend Maker 90", "must_contain": ["regirock"]},
+
     {"search": "Pokemon Gold Star Regice", "must_contain": ["pokemon", "gold", "star", "regice"]},
+    {"search": "Regice Legend Maker 89", "must_contain": ["regice"]},
+
     {"search": "Pokemon Gold Star Registeel", "must_contain": ["pokemon", "gold", "star", "registeel"]},
+    {"search": "Registeel Crystal Guardians 99", "must_contain": ["registeel"]},
+
     {"search": "Pokemon Gold Star Latios", "must_contain": ["pokemon", "gold", "star", "latios"]},
+    {"search": "Latios EX Deoxys 106", "must_contain": ["latios"]},
+
     {"search": "Pokemon Gold Star Latias", "must_contain": ["pokemon", "gold", "star", "latias"]},
+    {"search": "Latias EX Deoxys 105", "must_contain": ["latias"]},
+
     {"search": "Pokemon Gold Star Mudkip", "must_contain": ["pokemon", "gold", "star", "mudkip"]},
+    {"search": "Mudkip Team Rocket Returns 108", "must_contain": ["mudkip"]},
+
     {"search": "Pokemon Gold Star Torchic", "must_contain": ["pokemon", "gold", "star", "torchic"]},
+    {"search": "Torchic Team Rocket Returns 109", "must_contain": ["torchic"]},
+
     {"search": "Pokemon Gold Star Treecko", "must_contain": ["pokemon", "gold", "star", "treecko"]},
+    {"search": "Treecko Team Rocket Returns 107", "must_contain": ["treecko"]},
 
     {"search": "Pokemon Shining", "must_contain": ["pokemon", "shining"]},
     {"search": "Pokemon Shining Charizard", "must_contain": ["pokemon", "shining", "charizard"]},
+    {"search": "Shining Charizard Neo Destiny 107", "must_contain": ["charizard"]},
     {"search": "Pokemon Shining Mewtwo", "must_contain": ["pokemon", "shining", "mewtwo"]},
+    {"search": "Shining Mewtwo Neo Destiny 109", "must_contain": ["mewtwo"]},
     {"search": "Pokemon Shining Steelix", "must_contain": ["pokemon", "shining", "steelix"]},
+    {"search": "Shining Steelix Neo Destiny 111", "must_contain": ["steelix"]},
     {"search": "Pokemon Shining Kabutops", "must_contain": ["pokemon", "shining", "kabutops"]},
+    {"search": "Shining Kabutops Neo Destiny 108", "must_contain": ["kabutops"]},
     {"search": "Pokemon Shining Raichu", "must_contain": ["pokemon", "shining", "raichu"]},
+    {"search": "Shining Raichu Neo Destiny 112", "must_contain": ["raichu"]},
     {"search": "Pokemon Shining Gyarados", "must_contain": ["pokemon", "shining", "gyarados"]},
+    {"search": "Shining Gyarados Neo Destiny 65", "must_contain": ["gyarados"]},
     {"search": "Pokemon Shining Tyranitar", "must_contain": ["pokemon", "shining", "tyranitar"]},
+    {"search": "Shining Tyranitar Neo Destiny 113", "must_contain": ["tyranitar"]},
     {"search": "Pokemon Shining Celebi", "must_contain": ["pokemon", "shining", "celebi"]},
+    {"search": "Shining Celebi Neo Destiny 106", "must_contain": ["celebi"]},
     {"search": "Pokemon Shining Noctowl", "must_contain": ["pokemon", "shining", "noctowl"]},
+    {"search": "Shining Noctowl Neo Destiny 110", "must_contain": ["noctowl"]},
     {"search": "Pokemon Shining Magikarp", "must_contain": ["pokemon", "shining", "magikarp"]},
+    {"search": "Shining Magikarp Neo Destiny 66", "must_contain": ["magikarp"]},
 
     {"search": "Pokemon Crystal", "must_contain": ["pokemon", "crystal"]},
     {"search": "Pokemon Crystal Charizard", "must_contain": ["pokemon", "crystal", "charizard"]},
+    {"search": "Charizard Skyridge Crystal 146", "must_contain": ["charizard"]},
     {"search": "Pokemon Crystal Lugia", "must_contain": ["pokemon", "crystal", "lugia"]},
+    {"search": "Lugia Aquapolis Crystal 149", "must_contain": ["lugia"]},
     {"search": "Pokemon Crystal Ho-Oh", "must_contain": ["pokemon", "crystal", "ho-oh"]},
+    {"search": "Ho-Oh Skyridge Crystal 149", "must_contain": ["ho-oh"]},
     {"search": "Pokemon Crystal Nidoking", "must_contain": ["pokemon", "crystal", "nidoking"]},
+    {"search": "Nidoking Aquapolis Crystal 147", "must_contain": ["nidoking"]},
     {"search": "Pokemon Crystal Crobat", "must_contain": ["pokemon", "crystal", "crobat"]},
+    {"search": "Crobat Aquapolis Crystal 145", "must_contain": ["crobat"]},
     {"search": "Pokemon Crystal Suicune", "must_contain": ["pokemon", "crystal", "suicune"]},
+    {"search": "Suicune Aquapolis Crystal 148", "must_contain": ["suicune"]},
     {"search": "Pokemon Crystal Raikou", "must_contain": ["pokemon", "crystal", "raikou"]},
+    {"search": "Raikou Skyridge Crystal 147", "must_contain": ["raikou"]},
     {"search": "Pokemon Crystal Entei", "must_contain": ["pokemon", "crystal", "entei"]},
+    {"search": "Entei Skyridge Crystal 145", "must_contain": ["entei"]},
     {"search": "Pokemon Crystal Celebi", "must_contain": ["pokemon", "crystal", "celebi"]},
+    {"search": "Celebi Skyridge Crystal 144", "must_contain": ["celebi"]},
     {"search": "Pokemon Crystal Kingdra", "must_contain": ["pokemon", "crystal", "kingdra"]},
+    {"search": "Kingdra Aquapolis Crystal 146", "must_contain": ["kingdra"]},
 
     {"search": "Pokemon Neo Destiny", "must_contain": ["pokemon", "neo", "destiny"]},
     {"search": "Pokemon Neo Genesis Lugia", "must_contain": ["pokemon", "lugia"]},
+    {"search": "Lugia Neo Genesis 9", "must_contain": ["lugia"]},
     {"search": "Pokemon Neo Genesis Ho-Oh", "must_contain": ["pokemon", "ho-oh"]},
+    {"search": "Ho-Oh Neo Genesis 16", "must_contain": ["ho-oh"]},
 
     {"search": "Pokemon Skyridge Charizard", "must_contain": ["pokemon", "skyridge", "charizard"]},
+    {"search": "Charizard Skyridge 6 144", "must_contain": ["charizard", "skyridge"]},
     {"search": "Pokemon Aquapolis Charizard", "must_contain": ["pokemon", "aquapolis", "charizard"]},
     {"search": "Pokemon Expedition Charizard", "must_contain": ["pokemon", "expedition", "charizard"]},
+    {"search": "Charizard Expedition 6 165", "must_contain": ["charizard", "expedition"]},
 
     {"search": "Pokemon 1st Edition Charizard", "must_contain": ["pokemon", "charizard"]},
+    {"search": "Charizard 1st Edition Base Set 4 102", "must_contain": ["charizard"]},
     {"search": "Pokemon Shadowless Charizard", "must_contain": ["pokemon", "shadowless", "charizard"]},
     {"search": "Pokemon Base Set Charizard", "must_contain": ["pokemon", "charizard", "base"]},
+    {"search": "Charizard Base Set 4 102", "must_contain": ["charizard"]},
 
     {"search": "Pokemon Illustrator Pikachu", "must_contain": ["pokemon", "illustrator"]},
     {"search": "Pokemon Trophy Pikachu", "must_contain": ["pokemon", "trophy", "pikachu"]},
