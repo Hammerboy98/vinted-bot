@@ -316,6 +316,8 @@ async function checkAll() {
       const mustContain = config.must_contain || [];
       const specificTerms = mustContain.filter((w) => w !== "pokemon");
       const apiQuery = specificTerms.length > 0 ? specificTerms.join(" ") : keyword;
+      // Filtro titolo: stessi termini dell'API (senza "pokemon" — molti venditori non lo scrivono)
+      const titleTerms = specificTerms.length > 0 ? specificTerms : mustContain;
 
       console.log(`🔎 Cerco: "${keyword}"`);
 
@@ -329,7 +331,7 @@ async function checkAll() {
           const titleNorm = normalize(item.title);
           const fullContent = normalize(`${item.title} ${item.description || ""}`);
 
-          if (!mustContain.every((w) => titleNorm.includes(normalize(w)))) continue;
+          if (!titleTerms.every((w) => titleNorm.includes(normalize(w)))) continue;
           if (/\bno\b/i.test(item.title)) continue;
           if (EXCLUDE_TERMS.some((t) => fullContent.includes(normalize(t)))) continue;
           if (vintedNotifiedLinks.has(link)) continue;
@@ -359,7 +361,7 @@ async function checkAll() {
           if (!link || !itemId) continue;
 
           const titleNorm = normalize(title);
-          if (!mustContain.every((w) => titleNorm.includes(normalize(w)))) continue;
+          if (!titleTerms.every((w) => titleNorm.includes(normalize(w)))) continue;
           if (/\bno\b/i.test(title)) continue;
           if (EXCLUDE_TERMS.some((t) => titleNorm.includes(normalize(t)))) continue;
           if (ebayNotifiedIds.has(itemId)) continue;
