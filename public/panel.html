@@ -163,6 +163,12 @@ tr:last-child td{border-bottom:none}
     <div class="tab-pane active" id="pane-kw">
       <div class="filter-bar">
         <input id="kwFilter" placeholder="🔍 Cerca keyword..." oninput="kwPage=1;renderKeywords()">
+        <select id="kwPageSize" onchange="kwPage=1;renderKeywords()" style="width:auto">
+          <option value="10">10 / pagina</option>
+          <option value="15" selected>15 / pagina</option>
+          <option value="25">25 / pagina</option>
+          <option value="50">50 / pagina</option>
+        </select>
         <button class="btn btn-purple filter-bar-right" onclick="openModal()">+ Aggiungi keyword</button>
       </div>
       <table>
@@ -188,6 +194,12 @@ tr:last-child td{border-bottom:none}
           <option value="">Tutte le piattaforme</option>
           <option value="vinted">🟣 Vinted</option>
           <option value="ebay">🔵 eBay</option>
+        </select>
+        <select id="itemPageSize" onchange="itemsPage=1;renderItems()" style="width:auto">
+          <option value="10">10 / pagina</option>
+          <option value="15" selected>15 / pagina</option>
+          <option value="25">25 / pagina</option>
+          <option value="50">50 / pagina</option>
         </select>
       </div>
       <table>
@@ -238,7 +250,6 @@ let allItems = [];
 let activeTab = 'kw';
 let kwPage = 1;
 let itemsPage = 1;
-const PAGE_SIZE = 15;
 
 // ── API helper ──────────────────────────────────────────────
 async function api(method, url, body) {
@@ -348,9 +359,10 @@ function renderKeywords() {
     return;
   }
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const kwSize = parseInt(document.getElementById('kwPageSize').value) || 15;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / kwSize));
   if (kwPage > totalPages) kwPage = totalPages;
-  const slice = filtered.slice((kwPage - 1) * PAGE_SIZE, kwPage * PAGE_SIZE);
+  const slice = filtered.slice((kwPage - 1) * kwSize, kwPage * kwSize);
 
   tbody.innerHTML = slice.map(k => {
     const esc = k.search.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -442,9 +454,10 @@ function renderItems() {
     return;
   }
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const itemSize = parseInt(document.getElementById('itemPageSize').value) || 15;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemSize));
   if (itemsPage > totalPages) itemsPage = totalPages;
-  const slice = filtered.slice((itemsPage - 1) * PAGE_SIZE, itemsPage * PAGE_SIZE);
+  const slice = filtered.slice((itemsPage - 1) * itemSize, itemsPage * itemSize);
 
   tbody.innerHTML = slice.map(it => {
     const platBadge = it.platform === 'vinted'
