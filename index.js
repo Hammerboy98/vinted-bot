@@ -526,7 +526,7 @@ app.get("/panel/api/keywords", requireAuth, (req, res) => {
 });
 
 app.post("/panel/api/keywords", requireAuth, (req, res) => {
-  const { search, must_contain } = req.body;
+  const { search } = req.body;
   if (!search) return res.status(400).json({ error: "Campo 'search' obbligatorio." });
 
   const searchLower = search.toLowerCase().trim();
@@ -534,11 +534,7 @@ app.post("/panel/api/keywords", requireAuth, (req, res) => {
     return res.status(409).json({ error: "Keyword già presente." });
   }
 
-  const filters = must_contain
-    ? must_contain.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
-    : searchLower.split(/\s+/).filter((w) => w.length > 2);
-
-  KEYWORDS_CONFIG.push({ search: searchLower, must_contain: filters });
+  KEYWORDS_CONFIG.push({ search: searchLower });
   saveKeywordsConfig();
   res.json({ ok: true });
 });

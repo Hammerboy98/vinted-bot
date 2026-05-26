@@ -7,58 +7,99 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{min-height:100vh;background:#0d1117;font-family:system-ui,-apple-system,sans-serif;color:#c9d1d9;font-size:0.95rem}
-header{background:#161b22;border-bottom:1px solid #30363d;padding:0.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+header{background:#161b22;border-bottom:1px solid #30363d;padding:0.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20}
 header h1{font-size:1.1rem;font-weight:700}
 header a{color:#8b949e;text-decoration:none;font-size:0.85rem}
 header a:hover{color:#c9d1d9}
-main{max-width:1000px;margin:0 auto;padding:1.5rem 1rem}
-.section{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem}
-.section-title{font-size:0.75rem;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:1rem}
+main{max-width:1050px;margin:0 auto;padding:1.5rem 1rem}
+
+/* CARDS */
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1rem;margin-bottom:1.25rem}
 .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:1rem}
 .card .lbl{font-size:0.72rem;color:#8b949e;margin-bottom:0.25rem}
 .card .val{font-size:1.4rem;font-weight:700;line-height:1.2}
 .card .val.sm{font-size:0.95rem;font-weight:500;margin-top:0.2rem}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle}
-.dot-g{background:#238636} .dot-r{background:#da3633} .dot-y{background:#e3b341}
-.platforms{display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+.dot-g{background:#238636}.dot-r{background:#da3633}.dot-y{background:#e3b341}
+
+/* SECTION */
+.section{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem}
+.section-title{font-size:0.75rem;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:1rem}
+
+/* PIATTAFORME */
+.platforms{display:flex;gap:1rem;flex-wrap:wrap;align-items:center}
 .plat{display:flex;align-items:center;gap:0.6rem;background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:0.6rem 1rem}
 .plat span{font-weight:600}
 .tog{padding:0.28rem 0.75rem;border-radius:6px;border:none;cursor:pointer;font-size:0.8rem;font-weight:700;transition:background .15s}
-.tog.on{background:#238636;color:#fff} .tog.off{background:rgba(218,54,51,.15);color:#f85149;border:1px solid #da363355}
+.tog.on{background:#238636;color:#fff}.tog.off{background:rgba(218,54,51,.15);color:#f85149;border:1px solid #da363355}
+
+/* BUTTONS */
 .btn{padding:0.5rem 1rem;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;transition:background .15s}
-.btn-purple{background:#7c3aed;color:#fff} .btn-purple:hover{background:#6d28d9}
-.btn-green{background:#238636;color:#fff} .btn-green:hover{background:#1f6e2e}
-.btn-red{background:transparent;border:1px solid #da363366;color:#f85149;padding:0.26rem 0.6rem;font-size:0.78rem}
+.btn-purple{background:#7c3aed;color:#fff}.btn-purple:hover{background:#6d28d9}
+.btn-green{background:#238636;color:#fff}.btn-green:hover{background:#1f6e2e}
+.btn-ghost{background:transparent;border:1px solid #30363d;color:#c9d1d9}.btn-ghost:hover{background:#21262d}
+.btn-red{background:transparent;border:1px solid #da363366;color:#f85149;padding:0.26rem 0.6rem;font-size:0.78rem;border-radius:6px;cursor:pointer;font-weight:600}
 .btn-red:hover{background:rgba(218,54,51,.15)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
-.add-form{display:grid;grid-template-columns:1fr 1fr auto;gap:0.75rem;align-items:end;margin-bottom:1.25rem}
-.field label{display:block;font-size:0.72rem;color:#8b949e;margin-bottom:0.3rem}
-.field input{width:100%;padding:0.52rem 0.75rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.875rem}
-.field input:focus{outline:none;border-color:#7c3aed}
-.filter-row{margin-bottom:0.75rem}
-.filter-row input{width:100%;max-width:320px;padding:0.45rem 0.75rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.85rem}
-.filter-row input:focus{outline:none;border-color:#7c3aed}
+
+/* TABS */
+.tabs{display:flex;gap:0;border-bottom:1px solid #30363d;margin-bottom:1.25rem}
+.tab-btn{padding:0.65rem 1.25rem;background:none;border:none;border-bottom:2px solid transparent;color:#8b949e;font-size:0.875rem;font-weight:600;cursor:pointer;transition:color .15s,border-color .15s;margin-bottom:-1px}
+.tab-btn:hover{color:#c9d1d9}
+.tab-btn.active{color:#a78bfa;border-bottom-color:#7c3aed}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+
+/* TABLE */
 table{width:100%;border-collapse:collapse;font-size:0.85rem}
 th{text-align:left;padding:0.45rem 0.75rem;color:#8b949e;border-bottom:1px solid #30363d;font-weight:500;font-size:0.72rem;text-transform:uppercase}
 td{padding:0.55rem 0.75rem;border-bottom:1px solid #21262d;vertical-align:middle}
 tr:last-child td{border-bottom:none}
+.empty{text-align:center;padding:2rem;color:#8b949e}
+
+/* FILTER BAR */
+.filter-bar{display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+.filter-bar input,.filter-bar select{padding:0.45rem 0.75rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.85rem}
+.filter-bar input{flex:1;min-width:180px}
+.filter-bar input:focus,.filter-bar select:focus{outline:none;border-color:#7c3aed}
+.filter-bar-right{margin-left:auto}
+
+/* BADGES */
 .badge{display:inline-block;padding:0.18rem 0.45rem;border-radius:4px;font-size:0.68rem;font-weight:600;margin:0.1rem;background:#21262d;color:#8b949e}
 .badge-vinted{background:rgba(124,58,237,.18);color:#a78bfa}
 .badge-ebay{background:rgba(37,99,235,.18);color:#60a5fa}
-.empty{text-align:center;padding:2rem;color:#8b949e}
+
+/* ITEMS */
+.item-img{width:44px;height:44px;object-fit:cover;border-radius:6px;display:block}
+.item-img-ph{width:44px;height:44px;border-radius:6px;background:#21262d;display:flex;align-items:center;justify-content:center;font-size:1.3rem}
+.item-link{color:#c9d1d9;text-decoration:none;font-weight:600}
+.item-link:hover{color:#a78bfa;text-decoration:underline}
+.price{font-weight:700;color:#3fb950;white-space:nowrap}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:#161b22;border:1px solid #30363d;border-radius:14px;padding:1.75rem;width:100%;max-width:440px;transform:translateY(16px);transition:transform .2s}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal h2{font-size:1rem;font-weight:700;margin-bottom:0.35rem}
+.modal p{font-size:0.8rem;color:#8b949e;margin-bottom:1.25rem}
+.field label{display:block;font-size:0.72rem;color:#8b949e;margin-bottom:0.3rem}
+.field input{width:100%;padding:0.55rem 0.75rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.9rem}
+.field input:focus{outline:none;border-color:#7c3aed}
+.modal-actions{display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1.25rem}
+
+/* TOAST */
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#238636;color:#fff;padding:0.6rem 1rem;border-radius:8px;font-size:0.85rem;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;z-index:100}
 .toast.err{background:#da3633}
-.item-img{width:42px;height:42px;object-fit:cover;border-radius:6px;background:#21262d;display:block}
-.item-img-placeholder{width:42px;height:42px;border-radius:6px;background:#21262d;display:flex;align-items:center;justify-content:center;font-size:1.2rem}
-.item-title-link{color:#c9d1d9;text-decoration:none;font-weight:600}
-.item-title-link:hover{color:#a78bfa;text-decoration:underline}
-.price-tag{font-weight:700;color:#3fb950;white-space:nowrap}
-.items-filter-row{display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;margin-bottom:0.75rem}
-.items-filter-row input,.items-filter-row select{padding:0.45rem 0.75rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.85rem}
-.items-filter-row input{width:240px}
-.items-filter-row input:focus,.items-filter-row select:focus{outline:none;border-color:#7c3aed}
-@media(max-width:600px){.add-form{grid-template-columns:1fr}.platforms{flex-direction:column;align-items:flex-start}.items-filter-row input{width:100%}}
+
+/* FOOTER COUNT */
+.tbl-footer{font-size:0.75rem;color:#8b949e;margin-top:0.75rem;text-align:right}
+
+@media(max-width:600px){
+  .cards{grid-template-columns:1fr 1fr}
+  .platforms{flex-direction:column;align-items:flex-start}
+  .filter-bar-right{margin-left:0}
+}
 </style>
 </head>
 <body>
@@ -68,7 +109,7 @@ tr:last-child td{border-bottom:none}
 </header>
 <main>
 
-  <!-- STATUS CARDS -->
+  <!-- STATUS CARDS — sempre visibili -->
   <div class="cards">
     <div class="card">
       <div class="lbl">Stato</div>
@@ -88,7 +129,7 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
 
-  <!-- PIATTAFORME -->
+  <!-- PIATTAFORME — sempre visibile -->
   <div class="section">
     <div class="section-title">Piattaforme</div>
     <div class="platforms">
@@ -104,107 +145,101 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
 
-  <!-- KEYWORDS -->
-  <div class="section">
-    <div class="section-title">Keywords</div>
-    <form class="add-form" onsubmit="addKeyword(event)">
-      <div class="field">
-        <label>Ricerca</label>
-        <input id="newSearch" placeholder="es. pokemon gold star" required>
-      </div>
-      <div class="field">
-        <label>Filtri (separati da virgola)</label>
-        <input id="newFilters" placeholder="pokemon, gold, star">
-      </div>
-      <div class="field">
-        <label>&nbsp;</label>
-        <button type="submit" class="btn btn-purple">+ Aggiungi</button>
-      </div>
-    </form>
-    <div class="filter-row">
-      <input id="searchFilter" placeholder="🔍 Filtra keywords..." oninput="renderKeywords()">
+  <!-- TAB CONTAINER -->
+  <div class="section" style="padding-bottom:1rem">
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-kw" onclick="switchTab('kw')">🔑 Keywords</button>
+      <button class="tab-btn" id="tab-items" onclick="switchTab('items')">📦 Articoli Trovati <span id="itemsBadge" style="display:none;background:#7c3aed;color:#fff;border-radius:10px;padding:0.05rem 0.45rem;font-size:0.7rem;margin-left:4px"></span></button>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>Ricerca</th>
-          <th>Filtri</th>
-          <th style="width:80px"></th>
-        </tr>
-      </thead>
-      <tbody id="kwBody">
-        <tr><td colspan="3" class="empty">Caricamento...</td></tr>
-      </tbody>
-    </table>
-    <div id="kwCount" style="font-size:0.75rem;color:#8b949e;margin-top:0.75rem;text-align:right"></div>
-  </div>
 
-  <!-- ARTICOLI TROVATI -->
-  <div class="section">
-    <div class="section-title">Articoli Trovati</div>
-    <div class="items-filter-row">
-      <input id="itemSearch" placeholder="🔍 Filtra per titolo o keyword..." oninput="renderItems()">
-      <select id="itemPlatform" onchange="renderItems()">
-        <option value="">Tutte le piattaforme</option>
-        <option value="vinted">🟣 Vinted</option>
-        <option value="ebay">🔵 eBay</option>
-      </select>
+    <!-- TAB: KEYWORDS -->
+    <div class="tab-pane active" id="pane-kw">
+      <div class="filter-bar">
+        <input id="kwFilter" placeholder="🔍 Cerca keyword..." oninput="renderKeywords()">
+        <button class="btn btn-purple filter-bar-right" onclick="openModal()">+ Aggiungi keyword</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Ricerca</th>
+            <th style="width:80px"></th>
+          </tr>
+        </thead>
+        <tbody id="kwBody">
+          <tr><td colspan="2" class="empty">Caricamento...</td></tr>
+        </tbody>
+      </table>
+      <div class="tbl-footer" id="kwFooter"></div>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width:52px"></th>
-          <th>Titolo</th>
-          <th>Keyword</th>
-          <th>Prezzo</th>
-          <th>Trovato</th>
-        </tr>
-      </thead>
-      <tbody id="itemsBody">
-        <tr><td colspan="5" class="empty">Caricamento...</td></tr>
-      </tbody>
-    </table>
-    <div id="itemsCount" style="font-size:0.75rem;color:#8b949e;margin-top:0.75rem;text-align:right"></div>
+
+    <!-- TAB: ARTICOLI TROVATI -->
+    <div class="tab-pane" id="pane-items">
+      <div class="filter-bar">
+        <input id="itemFilter" placeholder="🔍 Cerca per titolo o keyword..." oninput="renderItems()">
+        <select id="itemPlatform" onchange="renderItems()">
+          <option value="">Tutte le piattaforme</option>
+          <option value="vinted">🟣 Vinted</option>
+          <option value="ebay">🔵 eBay</option>
+        </select>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:52px"></th>
+            <th>Titolo</th>
+            <th>Keyword</th>
+            <th>Prezzo</th>
+            <th>Trovato</th>
+          </tr>
+        </thead>
+        <tbody id="itemsBody">
+          <tr><td colspan="5" class="empty">Caricamento...</td></tr>
+        </tbody>
+      </table>
+      <div class="tbl-footer" id="itemsFooter"></div>
+    </div>
   </div>
 
 </main>
+
+<!-- MODAL AGGIUNGI KEYWORD -->
+<div class="modal-overlay" id="modalOverlay" onclick="maybeCloseModal(event)">
+  <div class="modal">
+    <h2>Aggiungi keyword</h2>
+    <p>Inserisci il termine di ricerca esatto. Il bot cercherà articoli che contengono tutte le parole indicate nel titolo.</p>
+    <div class="field">
+      <label for="modalInput">Keyword di ricerca</label>
+      <input id="modalInput" placeholder="es. Charizard Gold Star Dragon Frontiers 100" autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-purple" onclick="submitModal()">Aggiungi</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
-// Legge il token da localStorage — se assente, rimanda al login
 const PANEL_TOKEN = localStorage.getItem('panel_token');
 if (!PANEL_TOKEN) { location.href = '/panel/login'; }
 
 let allKeywords = [];
 let allItems = [];
+let activeTab = 'kw';
 
+// ── API helper ──────────────────────────────────────────────
 async function api(method, url, body) {
-  const opts = {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + PANEL_TOKEN
-    }
-  };
+  const opts = { method, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + PANEL_TOKEN } };
   if (body) opts.body = JSON.stringify(body);
   try {
     const r = await fetch(url, opts);
-    if (r.status === 401) {
-      localStorage.removeItem('panel_token');
-      location.href = '/panel/login';
-      return null;
-    }
+    if (r.status === 401) { localStorage.removeItem('panel_token'); location.href = '/panel/login'; return null; }
     return r.json();
-  } catch {
-    showToast('Errore di connessione.', true);
-    return null;
-  }
+  } catch { showToast('Errore di connessione.', true); return null; }
 }
 
-function doLogout() {
-  localStorage.removeItem('panel_token');
-  location.href = '/panel/login';
-}
+function doLogout() { localStorage.removeItem('panel_token'); location.href = '/panel/login'; }
 
 function showToast(msg, isErr) {
   const t = document.getElementById('toast');
@@ -214,6 +249,20 @@ function showToast(msg, isErr) {
   setTimeout(() => t.style.opacity = '0', 2500);
 }
 
+// ── TABS ────────────────────────────────────────────────────
+function switchTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('pane-' + name).classList.add('active');
+  if (name === 'items') {
+    const badge = document.getElementById('itemsBadge');
+    badge.style.display = 'none';
+  }
+}
+
+// ── STATUS ──────────────────────────────────────────────────
 function setToggle(id, enabled) {
   const btn = document.getElementById(id);
   btn.textContent = enabled ? 'ON' : 'OFF';
@@ -227,22 +276,33 @@ async function fetchStatus() {
   document.getElementById('kwCountVal').textContent = d.keywords;
   document.getElementById('lastCheckVal').textContent = d.lastCheckTime
     ? new Date(d.lastCheckTime).toLocaleString('it-IT') : 'Mai';
-
   const runBtn = document.getElementById('runBtn');
   if (d.isRunning) {
     document.getElementById('statusVal').innerHTML = '<span class="dot dot-y"></span>In esecuzione...';
-    runBtn.disabled = true;
-    runBtn.textContent = '⏳ In esecuzione...';
+    runBtn.disabled = true; runBtn.textContent = '⏳ In esecuzione...';
   } else {
     document.getElementById('statusVal').innerHTML = '<span class="dot dot-g"></span>Attivo';
-    runBtn.disabled = false;
-    runBtn.textContent = '▶ Avvia controllo ora';
+    runBtn.disabled = false; runBtn.textContent = '▶ Avvia controllo ora';
   }
-
   setToggle('vintedTog', d.vintedEnabled);
   setToggle('ebayTog', d.ebayEnabled);
 }
 
+async function togglePlatform(platform) {
+  const d = await api('POST', '/panel/api/toggle/' + platform);
+  if (!d) return;
+  setToggle(platform === 'vinted' ? 'vintedTog' : 'ebayTog', d.enabled);
+  showToast(platform.charAt(0).toUpperCase() + platform.slice(1) + (d.enabled ? ' attivato.' : ' disattivato.'));
+}
+
+async function runNow() {
+  const d = await api('POST', '/panel/api/run');
+  if (!d) return;
+  if (d.ok) { showToast('Controllo avviato!'); setTimeout(fetchStatus, 1500); }
+  else showToast(d.message, true);
+}
+
+// ── KEYWORDS ────────────────────────────────────────────────
 async function fetchKeywords() {
   const d = await api('GET', '/panel/api/keywords');
   if (!d) return;
@@ -251,34 +311,54 @@ async function fetchKeywords() {
 }
 
 function renderKeywords() {
-  const filter = document.getElementById('searchFilter').value.toLowerCase();
-  const filtered = allKeywords.filter(k => k.search.includes(filter) || (k.must_contain || []).join(' ').includes(filter));
+  const q = document.getElementById('kwFilter').value.toLowerCase().trim();
+  const filtered = q
+    ? allKeywords.filter(k => k.search.toLowerCase().includes(q))
+    : allKeywords;
   const tbody = document.getElementById('kwBody');
-
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="3" class="empty">Nessuna keyword trovata.</td></tr>';
-    document.getElementById('kwCount').textContent = '';
+    tbody.innerHTML = '<tr><td colspan="2" class="empty">' + (allKeywords.length ? 'Nessuna keyword corrisponde.' : 'Nessuna keyword configurata.') + '</td></tr>';
+    document.getElementById('kwFooter').textContent = '';
     return;
   }
-
   tbody.innerHTML = filtered.map(k => {
-    const esc = k.search.replace(/'/g, "\\'");
-    const badges = (k.must_contain || []).map(f => '<span class="badge">'+f+'</span>').join('');
-    return '<tr><td><strong>'+k.search+'</strong></td><td>'+badges+'</td><td><button class="btn btn-red" onclick="removeKeyword(\''+esc+'\')">Rimuovi</button></td></tr>';
+    const esc = k.search.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return '<tr><td><strong>' + k.search + '</strong></td>'
+      + '<td><button class="btn-red" onclick="removeKeyword(\'' + esc + '\')">Rimuovi</button></td></tr>';
   }).join('');
-
-  document.getElementById('kwCount').textContent = filtered.length + ' / ' + allKeywords.length + ' keyword';
+  document.getElementById('kwFooter').textContent = filtered.length + ' / ' + allKeywords.length + ' keyword';
 }
 
-async function addKeyword(e) {
-  e.preventDefault();
-  const search = document.getElementById('newSearch').value.trim();
-  const must_contain = document.getElementById('newFilters').value.trim();
-  const d = await api('POST', '/panel/api/keywords', { search, must_contain });
+async function removeKeyword(search) {
+  if (!confirm('Rimuovere "' + search + '"?')) return;
+  const d = await api('DELETE', '/panel/api/keywords', { search });
+  if (!d) return;
+  if (d.ok) { showToast('Keyword rimossa.'); await fetchKeywords(); await fetchStatus(); }
+  else showToast(d.error || 'Errore', true);
+}
+
+// ── MODAL ────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('modalInput').value = '';
+  document.getElementById('modalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('modalInput').focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function maybeCloseModal(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+}
+
+async function submitModal() {
+  const search = document.getElementById('modalInput').value.trim();
+  if (!search) { document.getElementById('modalInput').focus(); return; }
+  const d = await api('POST', '/panel/api/keywords', { search });
   if (!d) return;
   if (d.ok) {
-    document.getElementById('newSearch').value = '';
-    document.getElementById('newFilters').value = '';
+    closeModal();
     showToast('Keyword aggiunta!');
     await fetchKeywords();
     await fetchStatus();
@@ -287,57 +367,41 @@ async function addKeyword(e) {
   }
 }
 
-async function removeKeyword(search) {
-  if (!confirm('Rimuovere "' + search + '"?')) return;
-  const d = await api('DELETE', '/panel/api/keywords', { search });
-  if (!d) return;
-  if (d.ok) {
-    showToast('Keyword rimossa.');
-    await fetchKeywords();
-    await fetchStatus();
-  } else {
-    showToast(d.error || 'Errore', true);
-  }
-}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Enter' && document.getElementById('modalOverlay').classList.contains('open')) submitModal();
+});
 
-async function togglePlatform(platform) {
-  const d = await api('POST', '/panel/api/toggle/' + platform);
-  if (!d) return;
-  const id = platform === 'vinted' ? 'vintedTog' : 'ebayTog';
-  setToggle(id, d.enabled);
-  showToast(platform.charAt(0).toUpperCase() + platform.slice(1) + (d.enabled ? ' attivato.' : ' disattivato.'));
-}
-
-async function runNow() {
-  const d = await api('POST', '/panel/api/run');
-  if (!d) return;
-  if (d.ok) {
-    showToast('Controllo avviato!');
-    setTimeout(fetchStatus, 1500);
-  } else {
-    showToast(d.message, true);
-  }
-}
+// ── ITEMS ────────────────────────────────────────────────────
+let prevItemCount = 0;
 
 async function fetchItems() {
   const d = await api('GET', '/panel/api/items');
   if (!d) return;
+  const newCount = (d.items || []).length;
+  if (newCount > prevItemCount && prevItemCount > 0 && activeTab !== 'items') {
+    const diff = newCount - prevItemCount;
+    const badge = document.getElementById('itemsBadge');
+    badge.textContent = '+' + diff + ' nuov' + (diff === 1 ? 'o' : 'i');
+    badge.style.display = 'inline';
+  }
+  prevItemCount = newCount;
   allItems = d.items || [];
   renderItems();
 }
 
 function renderItems() {
-  const search = document.getElementById('itemSearch').value.toLowerCase();
+  const q = document.getElementById('itemFilter').value.toLowerCase().trim();
   const platform = document.getElementById('itemPlatform').value;
   const filtered = allItems.filter(it => {
     if (platform && it.platform !== platform) return false;
-    if (search && !it.title.toLowerCase().includes(search) && !it.keyword.toLowerCase().includes(search)) return false;
+    if (q && !it.title.toLowerCase().includes(q) && !it.keyword.toLowerCase().includes(q)) return false;
     return true;
   });
   const tbody = document.getElementById('itemsBody');
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty">' + (allItems.length ? 'Nessun articolo corrisponde al filtro.' : 'Nessun articolo trovato ancora.') + '</td></tr>';
-    document.getElementById('itemsCount').textContent = '';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">' + (allItems.length ? 'Nessun articolo corrisponde al filtro.' : 'Nessun articolo trovato ancora. Il bot inizierà a popolare questa lista al prossimo controllo.') + '</td></tr>';
+    document.getElementById('itemsFooter').textContent = '';
     return;
   }
   tbody.innerHTML = filtered.map(it => {
@@ -345,22 +409,24 @@ function renderItems() {
       ? '<span class="badge badge-vinted">🟣 Vinted</span>'
       : '<span class="badge badge-ebay">🔵 eBay</span>';
     const img = it.image
-      ? '<img class="item-img" src="'+it.image+'" loading="lazy" alt="">'
-      : '<div class="item-img-placeholder">📦</div>';
+      ? '<img class="item-img" src="' + it.image + '" loading="lazy" alt="" onerror="this.style.display=\'none\'">'
+      : '<div class="item-img-ph">📦</div>';
     const time = new Date(it.foundAt).toLocaleString('it-IT', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-    const titleEsc = it.title.replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const kwEsc = it.keyword.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const titleEsc = it.title.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const kwEsc = it.keyword.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const linkEsc = it.link.replace(/"/g,'&quot;');
     return '<tr>'
-      + '<td>'+img+'</td>'
-      + '<td><a class="item-title-link" href="'+it.link+'" target="_blank" rel="noopener">'+titleEsc+'</a><br><small style="color:#8b949e">'+platBadge+'</small></td>'
-      + '<td style="color:#8b949e;font-size:0.8rem">'+kwEsc+'</td>'
-      + '<td class="price-tag">'+it.price+'</td>'
-      + '<td style="color:#8b949e;font-size:0.8rem;white-space:nowrap">'+time+'</td>'
+      + '<td>' + img + '</td>'
+      + '<td><a class="item-link" href="' + linkEsc + '" target="_blank" rel="noopener">' + titleEsc + '</a><br><small>' + platBadge + '</small></td>'
+      + '<td style="color:#8b949e;font-size:0.8rem">' + kwEsc + '</td>'
+      + '<td class="price">' + it.price + '</td>'
+      + '<td style="color:#8b949e;font-size:0.8rem;white-space:nowrap">' + time + '</td>'
       + '</tr>';
   }).join('');
-  document.getElementById('itemsCount').textContent = filtered.length + ' / ' + allItems.length + ' articoli';
+  document.getElementById('itemsFooter').textContent = filtered.length + ' / ' + allItems.length + ' articoli';
 }
 
+// ── INIT ─────────────────────────────────────────────────────
 fetchStatus();
 fetchKeywords();
 fetchItems();
