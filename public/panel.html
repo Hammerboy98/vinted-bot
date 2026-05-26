@@ -53,7 +53,7 @@ tr:last-child td{border-bottom:none}
 <body>
 <header>
   <h1>🎮 PokéBot Control Panel</h1>
-  <span style="font-size:0.78rem;color:#8b949e" title="Per uscire: Impostazioni browser → Password salvate → Rimuovi credenziali onrender.com">🔒 Accesso protetto</span>
+  <a href="#" onclick="doLogout();return false;">Esci →</a>
 </header>
 <main>
 
@@ -132,14 +132,38 @@ tr:last-child td{border-bottom:none}
 <div class="toast" id="toast"></div>
 
 <script>
+// Legge il token da localStorage — se assente, rimanda al login
+const PANEL_TOKEN = localStorage.getItem('panel_token');
+if (!PANEL_TOKEN) { location.href = '/panel/login'; }
+
 let allKeywords = [];
 
 async function api(method, url, body) {
-  const opts = { method, headers: {'Content-Type':'application/json'} };
+  const opts = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + PANEL_TOKEN
+    }
+  };
   if (body) opts.body = JSON.stringify(body);
-  const r = await fetch(url, opts);
-  if (!r.ok && r.status === 401) { location.href = '/panel/login'; return null; }
-  return r.json();
+  try {
+    const r = await fetch(url, opts);
+    if (r.status === 401) {
+      localStorage.removeItem('panel_token');
+      location.href = '/panel/login';
+      return null;
+    }
+    return r.json();
+  } catch {
+    showToast('Errore di connessione.', true);
+    return null;
+  }
+}
+
+function doLogout() {
+  localStorage.removeItem('panel_token');
+  location.href = '/panel/login';
 }
 
 function showToast(msg, isErr) {

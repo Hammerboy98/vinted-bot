@@ -15,6 +15,7 @@ input[type=password]{width:100%;padding:0.6rem 0.8rem;background:#0d1117;border:
 input[type=password]:focus{outline:none;border-color:#7c3aed}
 button{width:100%;padding:0.7rem;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer}
 button:hover{background:#6d28d9}
+button:disabled{opacity:.5;cursor:not-allowed}
 .error{background:rgba(218,54,51,0.12);border:1px solid #da3633;color:#f85149;padding:0.6rem 0.8rem;border-radius:8px;margin-bottom:1rem;font-size:0.875rem;display:none}
 </style>
 </head>
@@ -23,15 +24,47 @@ button:hover{background:#6d28d9}
   <div class="icon">🎮</div>
   <h1>PokéBot Panel</h1>
   <div class="error" id="err">⚠️ Password non corretta.</div>
-  <form method="POST" action="/panel/login">
+  <div>
     <label for="pw">Password</label>
-    <input type="password" id="pw" name="password" placeholder="••••••••" autofocus required>
-    <button type="submit">Accedi</button>
-  </form>
+    <input type="password" id="pw" placeholder="••••••••" autofocus required>
+    <button id="btn" onclick="doLogin()">Accedi</button>
+  </div>
 </div>
 <script>
-if (new URLSearchParams(location.search).get('error'))
-  document.getElementById('err').style.display = 'block';
+async function doLogin() {
+  const pw = document.getElementById('pw').value;
+  const btn = document.getElementById('btn');
+  const err = document.getElementById('err');
+  if (!pw) return;
+  btn.disabled = true;
+  btn.textContent = 'Accesso...';
+  err.style.display = 'none';
+  try {
+    const r = await fetch('/panel/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await r.json();
+    if (data.ok && data.token) {
+      localStorage.setItem('panel_token', data.token);
+      location.href = '/panel/';
+    } else {
+      err.textContent = '⚠️ ' + (data.error || 'Password non corretta.');
+      err.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Accedi';
+    }
+  } catch {
+    err.textContent = '⚠️ Errore di connessione. Riprova.';
+    err.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Accedi';
+  }
+}
+document.getElementById('pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+// Se già loggato, vai al pannello
+if (localStorage.getItem('panel_token')) location.href = '/panel/';
 </script>
 </body>
 </html>

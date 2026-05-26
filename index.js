@@ -25,6 +25,8 @@ const PORT = process.env.PORT || 3000;
 const EBAY_APP_ID = process.env.EBAY_APP_ID || "";
 const PANEL_PASSWORD = (process.env.PANEL_PASSWORD || "admin").trim();
 const SESSION_SECRET = process.env.SESSION_SECRET || "pokebot-secret-key";
+// Token derivato dalla password — stabile tra restart, cambia se la password cambia
+const PANEL_TOKEN = crypto.createHmac("sha256", SESSION_SECRET).update(PANEL_PASSWORD).digest("hex");
 
 if (!TELEGRAM_TOKEN || !CHAT_ID) {
   console.error("🛑 TELEGRAM_TOKEN e CHAT_ID sono obbligatori.");
@@ -449,43 +451,34 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ============================================================
-// PANEL AUTH — HTTP Basic Auth (nessun cookie, nessun redirect loop)
+// PANEL AUTH — token Bearer in localStorage (no cookie, no redirect, no Basic Auth)
 // ============================================================
+
+// Middleware solo per le API: verifica header Authorization: Bearer <token>
 const requireAuth = (req, res, next) => {
-  const auth = req.headers.authorization || "";
-  if (auth.startsWith("Basic ")) {
-    const decoded = Buffer.from(auth.slice(6), "base64").toString();
-    const sep = decoded.indexOf(":");
-    if (sep !== -1 && decoded.slice(sep + 1) === PANEL_PASSWORD) return next();
-  }
-  const wantsJson = req.path.includes("/api/") || req.headers.accept?.includes("application/json");
-  if (wantsJson) {
-    res.set("WWW-Authenticate", 'Basic realm="PokéBot"');
-    return res.status(401).json({ error: "Non autorizzato." });
-  }
-  res.set("WWW-Authenticate", 'Basic realm="PokéBot Panel"');
-  res.status(401).send(
-    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>PokéBot — Login</title>' +
-    '<style>body{min-height:100vh;display:flex;align-items:center;justify-content:center;' +
-    'background:#0d1117;font-family:system-ui,sans-serif;color:#c9d1d9;text-align:center}' +
-    'h1{margin-bottom:.5rem}p{color:#8b949e}</style></head>' +
-    '<body><div><h1>🎮 PokéBot Panel</h1>' +
-    '<p>Il browser mostrerà una finestra di login.<br>Lascia vuoto il campo "Utente" e inserisci la password.</p>' +
-    "</div></body></html>"
-  );
+  const auth = req.headers["authorization"] || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  if (token === PANEL_TOKEN) return next();
+  res.status(401).json({ error: "Non autorizzato." });
 };
 
-// /panel/login non è più necessario — il browser gestisce tutto
-app.get("/panel/login", (req, res) => res.redirect("/panel/"));
-app.get("/panel/logout", (req, res) => {
-  // Basic Auth non ha logout standard; redirect al pannello
-  res.redirect("/panel/");
+// POST login: valida password, restituisce token al client
+app.post("/panel/login", (req, res) => {
+  const pwd = (req.body.password || "").trim();
+  if (pwd === PANEL_PASSWORD) {
+    console.log("✅ Panel login OK");
+    return res.json({ ok: true, token: PANEL_TOKEN });
+  }
+  console.warn("⚠️ Panel login: password errata");
+  res.status(401).json({ ok: false, error: "Password non corretta." });
 });
 
-app.get("/panel", requireAuth, (req, res) => res.redirect("/panel/"));
-app.get("/panel/", requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "panel.html"));
-});
+// HTML routes — servono i file statici, nessuna auth server-side
+// (l'auth è gestita dal JS nel browser tramite localStorage)
+app.get("/panel/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+app.get("/panel/logout", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+app.get("/panel", (req, res) => res.redirect("/panel/"));
+app.get("/panel/", (req, res) => res.sendFile(path.join(__dirname, "public", "panel.html")));
 
 // ============================================================
 // PANEL API
