@@ -482,8 +482,7 @@ app.post("/panel/login", (req, res) => {
 // (l'auth è gestita dal JS nel browser tramite localStorage)
 app.get("/panel/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
 app.get("/panel/logout", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-app.get("/panel", (req, res) => res.redirect("/panel/"));
-app.get("/panel/", (req, res) => res.sendFile(path.join(__dirname, "public", "panel.html")));
+app.get(["/panel", "/panel/"], (req, res) => res.sendFile(path.join(__dirname, "public", "panel.html")));
 
 // ============================================================
 // PANEL API
