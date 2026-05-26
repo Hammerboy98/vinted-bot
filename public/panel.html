@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PokéBot Panel</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#0d1117;font-family:system-ui,-apple-system,sans-serif;color:#c9d1d9;font-size:0.95rem}
+header{background:#161b22;border-bottom:1px solid #30363d;padding:0.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+header h1{font-size:1.1rem;font-weight:700}
+header a{color:#8b949e;text-decoration:none;font-size:0.85rem}
+header a:hover{color:#c9d1d9}
+main{max-width:1000px;margin:0 auto;padding:1.5rem 1rem}
+.section{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem}
+.section-title{font-size:0.75rem;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:1rem}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1rem;margin-bottom:1.25rem}
+.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:1rem}
+.card .lbl{font-size:0.72rem;color:#8b949e;margin-bottom:0.25rem}
+.card .val{font-size:1.4rem;font-weight:700;line-height:1.2}
+.card .val.sm{font-size:0.95rem;font-weight:500;margin-top:0.2rem}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle}
+.dot-g{background:#238636} .dot-r{background:#da3633} .dot-y{background:#e3b341}
+.platforms{display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+.plat{display:flex;align-items:center;gap:0.6rem;background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:0.6rem 1rem}
+.plat span{font-weight:600}
+.tog{padding:0.28rem 0.75rem;border-radius:6px;border:none;cursor:pointer;font-size:0.8rem;font-weight:700;transition:background .15s}
+.tog.on{background:#238636;color:#fff} .tog.off{background:rgba(218,54,51,.15);color:#f85149;border:1px solid #da363355}
+.btn{padding:0.5rem 1rem;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;transition:background .15s}
+.btn-purple{background:#7c3aed;color:#fff} .btn-purple:hover{background:#6d28d9}
+.btn-green{background:#238636;color:#fff} .btn-green:hover{background:#1f6e2e}
+.btn-red{background:transparent;border:1px solid #da363366;color:#f85149;padding:0.26rem 0.6rem;font-size:0.78rem}
+.btn-red:hover{background:rgba(218,54,51,.15)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.add-form{display:grid;grid-template-columns:1fr 1fr auto;gap:0.75rem;align-items:end;margin-bottom:1.25rem}
+.field label{display:block;font-size:0.72rem;color:#8b949e;margin-bottom:0.3rem}
+.field input{width:100%;padding:0.52rem 0.75rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.875rem}
+.field input:focus{outline:none;border-color:#7c3aed}
+.filter-row{margin-bottom:0.75rem}
+.filter-row input{width:100%;max-width:320px;padding:0.45rem 0.75rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.85rem}
+.filter-row input:focus{outline:none;border-color:#7c3aed}
+table{width:100%;border-collapse:collapse;font-size:0.85rem}
+th{text-align:left;padding:0.45rem 0.75rem;color:#8b949e;border-bottom:1px solid #30363d;font-weight:500;font-size:0.72rem;text-transform:uppercase}
+td{padding:0.55rem 0.75rem;border-bottom:1px solid #21262d;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:0.18rem 0.45rem;border-radius:4px;font-size:0.68rem;font-weight:600;margin:0.1rem;background:#21262d;color:#8b949e}
+.empty{text-align:center;padding:2rem;color:#8b949e}
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#238636;color:#fff;padding:0.6rem 1rem;border-radius:8px;font-size:0.85rem;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;z-index:100}
+.toast.err{background:#da3633}
+@media(max-width:600px){.add-form{grid-template-columns:1fr}.platforms{flex-direction:column;align-items:flex-start}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎮 PokéBot Control Panel</h1>
+  <a href="/panel/logout">Esci →</a>
+</header>
+<main>
+
+  <!-- STATUS CARDS -->
+  <div class="cards">
+    <div class="card">
+      <div class="lbl">Stato</div>
+      <div class="val" id="statusVal"><span class="dot dot-g"></span>Attivo</div>
+    </div>
+    <div class="card">
+      <div class="lbl">Trovati oggi</div>
+      <div class="val" id="foundVal">—</div>
+    </div>
+    <div class="card">
+      <div class="lbl">Keyword attive</div>
+      <div class="val" id="kwCountVal">—</div>
+    </div>
+    <div class="card">
+      <div class="lbl">Ultimo controllo</div>
+      <div class="val sm" id="lastCheckVal">—</div>
+    </div>
+  </div>
+
+  <!-- PIATTAFORME -->
+  <div class="section">
+    <div class="section-title">Piattaforme</div>
+    <div class="platforms">
+      <div class="plat">
+        <span>🟣 Vinted</span>
+        <button class="tog" id="vintedTog" onclick="togglePlatform('vinted')">…</button>
+      </div>
+      <div class="plat">
+        <span>🔵 eBay</span>
+        <button class="tog" id="ebayTog" onclick="togglePlatform('ebay')">…</button>
+      </div>
+      <button class="btn btn-green" id="runBtn" onclick="runNow()" style="margin-left:auto">▶ Avvia controllo ora</button>
+    </div>
+  </div>
+
+  <!-- KEYWORDS -->
+  <div class="section">
+    <div class="section-title">Keywords</div>
+    <form class="add-form" onsubmit="addKeyword(event)">
+      <div class="field">
+        <label>Ricerca</label>
+        <input id="newSearch" placeholder="es. pokemon gold star" required>
+      </div>
+      <div class="field">
+        <label>Filtri (separati da virgola)</label>
+        <input id="newFilters" placeholder="pokemon, gold, star">
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button type="submit" class="btn btn-purple">+ Aggiungi</button>
+      </div>
+    </form>
+    <div class="filter-row">
+      <input id="searchFilter" placeholder="🔍 Filtra keywords..." oninput="renderKeywords()">
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Ricerca</th>
+          <th>Filtri</th>
+          <th style="width:80px"></th>
+        </tr>
+      </thead>
+      <tbody id="kwBody">
+        <tr><td colspan="3" class="empty">Caricamento...</td></tr>
+      </tbody>
+    </table>
+    <div id="kwCount" style="font-size:0.75rem;color:#8b949e;margin-top:0.75rem;text-align:right"></div>
+  </div>
+
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+let allKeywords = [];
+
+async function api(method, url, body) {
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  if (!r.ok && r.status === 401) { location.href = '/panel/login'; return null; }
+  return r.json();
+}
+
+function showToast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isErr ? ' err' : '');
+  t.style.opacity = '1';
+  setTimeout(() => t.style.opacity = '0', 2500);
+}
+
+function setToggle(id, enabled) {
+  const btn = document.getElementById(id);
+  btn.textContent = enabled ? 'ON' : 'OFF';
+  btn.className = 'tog ' + (enabled ? 'on' : 'off');
+}
+
+async function fetchStatus() {
+  const d = await api('GET', '/panel/api/status');
+  if (!d) return;
+  document.getElementById('foundVal').textContent = d.itemsFoundToday;
+  document.getElementById('kwCountVal').textContent = d.keywords;
+  document.getElementById('lastCheckVal').textContent = d.lastCheckTime
+    ? new Date(d.lastCheckTime).toLocaleString('it-IT') : 'Mai';
+
+  const runBtn = document.getElementById('runBtn');
+  if (d.isRunning) {
+    document.getElementById('statusVal').innerHTML = '<span class="dot dot-y"></span>In esecuzione...';
+    runBtn.disabled = true;
+    runBtn.textContent = '⏳ In esecuzione...';
+  } else {
+    document.getElementById('statusVal').innerHTML = '<span class="dot dot-g"></span>Attivo';
+    runBtn.disabled = false;
+    runBtn.textContent = '▶ Avvia controllo ora';
+  }
+
+  setToggle('vintedTog', d.vintedEnabled);
+  setToggle('ebayTog', d.ebayEnabled);
+}
+
+async function fetchKeywords() {
+  const d = await api('GET', '/panel/api/keywords');
+  if (!d) return;
+  allKeywords = d.keywords;
+  renderKeywords();
+}
+
+function renderKeywords() {
+  const filter = document.getElementById('searchFilter').value.toLowerCase();
+  const filtered = allKeywords.filter(k => k.search.includes(filter) || k.must_contain.join(' ').includes(filter));
+  const tbody = document.getElementById('kwBody');
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty">Nessuna keyword trovata.</td></tr>';
+    document.getElementById('kwCount').textContent = '';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(k => {
+    const esc = k.search.replace(/'/g, "\\'");
+    const badges = k.must_contain.map(f => '<span class="badge">'+f+'</span>').join('');
+    return '<tr><td><strong>'+k.search+'</strong></td><td>'+badges+'</td><td><button class="btn btn-red" onclick="removeKeyword(\''+esc+'\')">Rimuovi</button></td></tr>';
+  }).join('');
+
+  document.getElementById('kwCount').textContent = filtered.length + ' / ' + allKeywords.length + ' keyword';
+}
+
+async function addKeyword(e) {
+  e.preventDefault();
+  const search = document.getElementById('newSearch').value.trim();
+  const must_contain = document.getElementById('newFilters').value.trim();
+  const d = await api('POST', '/panel/api/keywords', { search, must_contain });
+  if (!d) return;
+  if (d.ok) {
+    document.getElementById('newSearch').value = '';
+    document.getElementById('newFilters').value = '';
+    showToast('Keyword aggiunta!');
+    await fetchKeywords();
+    await fetchStatus();
+  } else {
+    showToast(d.error || 'Errore', true);
+  }
+}
+
+async function removeKeyword(search) {
+  if (!confirm('Rimuovere "' + search + '"?')) return;
+  const d = await api('DELETE', '/panel/api/keywords', { search });
+  if (!d) return;
+  if (d.ok) {
+    showToast('Keyword rimossa.');
+    await fetchKeywords();
+    await fetchStatus();
+  } else {
+    showToast(d.error || 'Errore', true);
+  }
+}
+
+async function togglePlatform(platform) {
+  const d = await api('POST', '/panel/api/toggle/' + platform);
+  if (!d) return;
+  const id = platform === 'vinted' ? 'vintedTog' : 'ebayTog';
+  setToggle(id, d.enabled);
+  showToast(platform.charAt(0).toUpperCase() + platform.slice(1) + (d.enabled ? ' attivato.' : ' disattivato.'));
+}
+
+async function runNow() {
+  const d = await api('POST', '/panel/api/run');
+  if (!d) return;
+  if (d.ok) {
+    showToast('Controllo avviato!');
+    setTimeout(fetchStatus, 1500);
+  } else {
+    showToast(d.message, true);
+  }
+}
+
+fetchStatus();
+fetchKeywords();
+setInterval(fetchStatus, 15000);
+</script>
+</body>
+</html>
