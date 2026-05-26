@@ -79,7 +79,7 @@ const EXCLUDE_TERMS = [
   "calzini", "socks", "scarpe", "scarpa",
   "sandali", "sandalo", "sandales", "sandalen", "sandal",
   "ciabatte", "ciabatta", "ciabattine",
-  "infradito", "claquettes", "slippers", "sneaker",
+  "infradito", "claquettes", "claquette", "slippers", "sneaker",
   "poster", "quadro", "stampa", "canvas", "lampada",
   "tazza", "mug", "borraccia", "tappetino",
   "zaino", "borsa", "borsetta", "portafoglio",
@@ -91,7 +91,20 @@ const EXCLUDE_TERMS = [
   "booster", "bustina", "display box",
   "raccoglitore", "binder",
   "gadget", "puzzle",
+  // Marchi di abbigliamento/scarpe che usano "gold star" nel nome
+  "golden goose", "backpack", "ledertasche", "tasche", "star wars",
+  "superstar", "jacket", "giacca", "giubbotto", "pantalone", "vestito",
+  "scarpa da ginnastica", "taglia", " tg ", " tg.", "size ",
 ];
+
+// Termini generici dei set Pokemon — non sono nomi Pokemon specifici.
+// Se la query API usa SOLO questi termini, richiediamo "pokemon" nel titolo
+// per evitare falsi positivi (es. scarpe "gold star").
+const GENERIC_CARD_TERMS = new Set([
+  "gold", "star", "shining", "crystal", "neo", "destiny", "genesis",
+  "skyridge", "aquapolis", "expedition", "shadowless", "base",
+  "illustrator", "trophy", "tropical", "trainer", "edition", "1st",
+]);
 
 // ============================================================
 // BOT STATE
@@ -316,8 +329,12 @@ async function checkAll() {
       const mustContain = config.must_contain || [];
       const specificTerms = mustContain.filter((w) => w !== "pokemon");
       const apiQuery = specificTerms.length > 0 ? specificTerms.join(" ") : keyword;
-      // Filtro titolo: stessi termini dell'API (senza "pokemon" — molti venditori non lo scrivono)
-      const titleTerms = specificTerms.length > 0 ? specificTerms : mustContain;
+      // Se specificTerms include almeno un nome Pokémon (non un termine generico di set),
+      // non serve "pokemon" nel titolo — il nome del Pokémon è abbastanza specifico.
+      // Se i termini sono tutti generici (es. "gold star"), richiediamo "pokemon"
+      // per evitare falsi positivi (scarpe, borse, ecc.).
+      const hasSpecificName = specificTerms.some((w) => !GENERIC_CARD_TERMS.has(w));
+      const titleTerms = hasSpecificName ? specificTerms : mustContain;
 
       console.log(`🔎 Cerco: "${keyword}"`);
 
