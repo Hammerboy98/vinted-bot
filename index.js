@@ -282,17 +282,18 @@ async function searchVinted(keyword) {
 async function searchEbay(keyword) {
   if (!EBAY_APP_ID) return [];
   try {
-    const res = await axios.get("https://svcs.ebay.it/services/search/FindingService/v1", {
+    const res = await axios.get("https://svcs.ebay.com/services/search/FindingService/v1", {
       params: {
         "OPERATION-NAME": "findItemsByKeywords",
         "SERVICE-VERSION": "1.0.0",
         "SECURITY-APPNAME": EBAY_APP_ID,
         "RESPONSE-DATA-FORMAT": "JSON",
+        "GLOBAL-ID": "EBAY-IT",
         keywords: keyword,
         "paginationInput.entriesPerPage": 50,
         sortOrder: "StartTimeNewest",
       },
-      timeout: 12000,
+      timeout: 15000,
     });
     const result = res.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item;
     return Array.isArray(result) ? result : [];
