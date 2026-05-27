@@ -561,7 +561,7 @@ tbody tr:hover{background:rgba(255,255,255,0.025)}
 
 <script>
 const PANEL_TOKEN = localStorage.getItem('panel_token');
-if (!PANEL_TOKEN) { location.href = '/panel/login'; }
+if (!PANEL_TOKEN) { location.href = '/PokéBotControl/login'; }
 
 let allKeywords = [];
 let allItems = [];
@@ -575,12 +575,12 @@ async function api(method, url, body) {
   if (body) opts.body = JSON.stringify(body);
   try {
     const r = await fetch(url, opts);
-    if (r.status === 401) { localStorage.removeItem('panel_token'); location.href = '/panel/login'; return null; }
+    if (r.status === 401) { localStorage.removeItem('panel_token'); location.href = '/PokéBotControl/login'; return null; }
     return r.json();
   } catch { showToast('Errore di connessione.', true); return null; }
 }
 
-function doLogout() { localStorage.removeItem('panel_token'); location.href = '/panel/login'; }
+function doLogout() { localStorage.removeItem('panel_token'); location.href = '/PokéBotControl/login'; }
 
 function showToast(msg, isErr) {
   const t = document.getElementById('toast');
@@ -613,7 +613,7 @@ function setToggle(id, enabled) {
 }
 
 async function fetchStatus() {
-  const d = await api('GET', '/panel/api/status');
+  const d = await api('GET', '/PokéBotControl/api/status');
   if (!d) return;
   document.getElementById('foundVal').textContent = d.itemsFoundToday;
   document.getElementById('kwCountVal').textContent = d.keywords;
@@ -632,14 +632,14 @@ async function fetchStatus() {
 }
 
 async function togglePlatform(platform) {
-  const d = await api('POST', '/panel/api/toggle/' + platform);
+  const d = await api('POST', '/PokéBotControl/api/toggle/' + platform);
   if (!d) return;
   setToggle(platform === 'vinted' ? 'vintedTog' : 'ebayTog', d.enabled);
   showToast(platform.charAt(0).toUpperCase() + platform.slice(1) + (d.enabled ? ' attivato.' : ' disattivato.'));
 }
 
 async function runNow() {
-  const d = await api('POST', '/panel/api/run');
+  const d = await api('POST', '/PokéBotControl/api/run');
   if (!d) return;
   if (d.ok) { showToast('Controllo avviato!'); setTimeout(fetchStatus, 1500); }
   else showToast(d.message, true);
@@ -657,7 +657,7 @@ function renderPagination(containerId, currentPage, totalPages, onPageFn) {
 
 // ── KEYWORDS ─────────────────────────────────────────────────
 async function fetchKeywords() {
-  const d = await api('GET', '/panel/api/keywords');
+  const d = await api('GET', '/PokéBotControl/api/keywords');
   if (!d) return;
   allKeywords = d.keywords;
   renderKeywords();
@@ -696,7 +696,7 @@ function renderKeywords() {
 
 async function removeKeyword(search) {
   if (!confirm('Rimuovere "' + search + '"?')) return;
-  const d = await api('DELETE', '/panel/api/keywords', { search });
+  const d = await api('DELETE', '/PokéBotControl/api/keywords', { search });
   if (!d) return;
   if (d.ok) { showToast('Keyword rimossa.'); kwPage = 1; await fetchKeywords(); await fetchStatus(); }
   else showToast(d.error || 'Errore', true);
@@ -720,7 +720,7 @@ function maybeCloseModal(e) {
 async function submitModal() {
   const search = document.getElementById('modalInput').value.trim();
   if (!search) { document.getElementById('modalInput').focus(); return; }
-  const d = await api('POST', '/panel/api/keywords', { search });
+  const d = await api('POST', '/PokéBotControl/api/keywords', { search });
   if (!d) return;
   if (d.ok) {
     closeModal();
@@ -741,7 +741,7 @@ document.addEventListener('keydown', e => {
 let prevItemCount = 0;
 
 async function fetchItems() {
-  const d = await api('GET', '/panel/api/items');
+  const d = await api('GET', '/PokéBotControl/api/items');
   if (!d) return;
   const newCount = (d.items || []).length;
   if (newCount > prevItemCount && prevItemCount > 0 && activeTab !== 'items') {

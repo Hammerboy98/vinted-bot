@@ -207,7 +207,7 @@ async function doLogin(){
   btn.textContent='Autenticazione…';
   document.getElementById('err').classList.remove('show','shake');
   try{
-    const r=await fetch('/panel/login',{
+    const r=await fetch('/PokéBotControl/login',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({password:pw})
@@ -216,7 +216,7 @@ async function doLogin(){
     if(data.ok&&data.token){
       localStorage.setItem('panel_token',data.token);
       btn.textContent='✓ Accesso autorizzato';
-      location.href='/panel/';
+      location.href='/PokéBotControl/pannello';
     }else{
       showError(data.error||'Password non corretta.');
       btn.disabled=false;
@@ -229,7 +229,7 @@ async function doLogin(){
   }
 }
 document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-if(localStorage.getItem('panel_token'))location.href='/panel/';
+if(localStorage.getItem('panel_token'))location.href='/PokéBotControl/pannello';
 </script>
 </body>
 </html>

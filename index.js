@@ -99,6 +99,17 @@ const EXCLUDE_TERMS = [
   "scarpa da ginnastica", "taglia", " tg ", " tg.", "size ",
 ];
 
+// Termini che per le keyword One Piece NON vanno esclusi
+// (i venditori usano spesso "manga"/"fumetto" per descrivere carte One Piece)
+const ONE_PIECE_ALLOW_TERMS = new Set(["manga", "fumetto"]);
+
+function getExcludeTerms(keyword) {
+  if (normalize(keyword).includes("one piece")) {
+    return EXCLUDE_TERMS.filter((t) => !ONE_PIECE_ALLOW_TERMS.has(t));
+  }
+  return EXCLUDE_TERMS;
+}
+
 
 // ============================================================
 // BOT STATE
@@ -349,6 +360,7 @@ async function checkAll() {
       // Tutti i termini del campo "search" devono essere presenti nel titolo
       const filterTerms = getSearchTerms(keyword);
       const apiQuery = keyword;
+      const excludeTerms = getExcludeTerms(keyword);
 
       console.log(`🔎 Cerco: "${keyword}"`);
 
@@ -363,7 +375,7 @@ async function checkAll() {
           const fullContent = normalize(`${item.title} ${item.description || ""}`);
 
           if (!titleMatchesAll(titleNorm, filterTerms)) continue;
-          if (EXCLUDE_TERMS.some((t) => fullContent.includes(normalize(t)))) continue;
+          if (excludeTerms.some((t) => fullContent.includes(normalize(t)))) continue;
           if (vintedNotifiedLinks.has(link)) continue;
 
           vintedNotifiedLinks.add(link);
@@ -403,7 +415,7 @@ async function checkAll() {
 
           const titleNorm = normalize(title);
           if (!titleMatchesAll(titleNorm, filterTerms)) continue;
-          if (EXCLUDE_TERMS.some((t) => titleNorm.includes(normalize(t)))) continue;
+          if (excludeTerms.some((t) => titleNorm.includes(normalize(t)))) continue;
           if (ebayNotifiedIds.has(itemId)) continue;
 
           ebayNotifiedIds.add(itemId);
@@ -493,7 +505,7 @@ const requireAuth = (req, res, next) => {
 };
 
 // POST login: valida password, restituisce token al client
-app.post("/panel/login", (req, res) => {
+app.post("/PokéBotControl/login", (req, res) => {
   const pwd = (req.body.password || "").trim();
   if (pwd === PANEL_PASSWORD) {
     console.log("✅ Panel login OK");
@@ -505,14 +517,14 @@ app.post("/panel/login", (req, res) => {
 
 // HTML routes — servono i file statici, nessuna auth server-side
 // (l'auth è gestita dal JS nel browser tramite localStorage)
-app.get("/panel/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-app.get("/panel/logout", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-app.get(["/panel", "/panel/"], (req, res) => res.sendFile(path.join(__dirname, "public", "panel.html")));
+app.get("/PokéBotControl/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+app.get("/PokéBotControl/logout", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+app.get(["/PokéBotControl/pannello", "/PokéBotControl/pannello/"], (req, res) => res.sendFile(path.join(__dirname, "public", "panel.html")));
 
 // ============================================================
 // PANEL API
 // ============================================================
-app.get("/panel/api/status", requireAuth, (req, res) => {
+app.get("/PokéBotControl/api/status", requireAuth, (req, res) => {
   res.json({
     ...botStats,
     keywords: KEYWORDS_CONFIG.length,
@@ -521,11 +533,11 @@ app.get("/panel/api/status", requireAuth, (req, res) => {
   });
 });
 
-app.get("/panel/api/keywords", requireAuth, (req, res) => {
+app.get("/PokéBotControl/api/keywords", requireAuth, (req, res) => {
   res.json({ keywords: KEYWORDS_CONFIG });
 });
 
-app.post("/panel/api/keywords", requireAuth, (req, res) => {
+app.post("/PokéBotControl/api/keywords", requireAuth, (req, res) => {
   const { search } = req.body;
   if (!search) return res.status(400).json({ error: "Campo 'search' obbligatorio." });
 
@@ -539,7 +551,7 @@ app.post("/panel/api/keywords", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete("/panel/api/keywords", requireAuth, (req, res) => {
+app.delete("/PokéBotControl/api/keywords", requireAuth, (req, res) => {
   const { search } = req.body;
   const before = KEYWORDS_CONFIG.length;
   KEYWORDS_CONFIG = KEYWORDS_CONFIG.filter((k) => k.search !== search);
@@ -550,7 +562,7 @@ app.delete("/panel/api/keywords", requireAuth, (req, res) => {
   res.status(404).json({ error: "Keyword non trovata." });
 });
 
-app.post("/panel/api/toggle/:platform", requireAuth, (req, res) => {
+app.post("/PokéBotControl/api/toggle/:platform", requireAuth, (req, res) => {
   const p = req.params.platform;
   if (p === "vinted") {
     botStats.vintedEnabled = !botStats.vintedEnabled;
@@ -563,13 +575,13 @@ app.post("/panel/api/toggle/:platform", requireAuth, (req, res) => {
   res.status(400).json({ error: "Platform non valida." });
 });
 
-app.post("/panel/api/run", requireAuth, (req, res) => {
+app.post("/PokéBotControl/api/run", requireAuth, (req, res) => {
   if (isRunning) return res.json({ ok: false, message: "Già in esecuzione." });
   checkAll();
   res.json({ ok: true, message: "Controllo avviato." });
 });
 
-app.get("/panel/api/items", requireAuth, (req, res) => {
+app.get("/PokéBotControl/api/items", requireAuth, (req, res) => {
   res.json({ items: foundItems });
 });
 
