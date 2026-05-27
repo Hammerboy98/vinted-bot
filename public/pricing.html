@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PokéBot — Piani e Prezzi</title>
+<style>
+:root{
+  --cyan:#00d4ff;
+  --purple:#8b5cf6;
+  --green:#00e676;
+  --orange:#ff9500;
+  --yellow:#fbbf24;
+  --red:#ff4d6d;
+  --bg:#04080f;
+  --surface:rgba(8,16,38,0.9);
+  --border:rgba(255,255,255,0.07);
+  --border2:rgba(255,255,255,0.13);
+  --text:#eef2ff;
+  --text-dim:rgba(238,242,255,0.45);
+  --text-dimmer:rgba(238,242,255,0.25);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:var(--bg);font-family:system-ui,-apple-system,sans-serif;color:var(--text);position:relative}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.025) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}
+body::after{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:radial-gradient(ellipse 100% 40% at 50% -5%,rgba(109,40,217,0.07),transparent 70%);pointer-events:none;z-index:0}
+
+nav{
+  position:sticky;top:0;z-index:20;
+  background:rgba(4,8,20,0.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(0,212,255,0.1);
+  padding:.85rem 1.5rem;
+  display:flex;align-items:center;justify-content:space-between;
+  box-shadow:0 1px 0 rgba(0,212,255,0.05),0 4px 24px rgba(0,0,0,.35);
+}
+.nav-brand{
+  font-size:1rem;font-weight:800;
+  background:linear-gradient(135deg,#f0f4ff 20%,var(--cyan) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.nav-right{display:flex;align-items:center;gap:.75rem}
+.nav-link{
+  display:flex;align-items:center;gap:.4rem;
+  background:rgba(255,255,255,0.04);border:1px solid var(--border);
+  border-radius:8px;padding:.35rem .75rem;
+  color:var(--text-dim);text-decoration:none;font-size:.78rem;font-weight:600;
+  transition:color .15s,background .15s,border-color .15s;
+}
+.nav-link:hover{color:var(--cyan);background:rgba(0,212,255,0.06);border-color:rgba(0,212,255,0.2)}
+.nav-link.panel{color:var(--cyan);border-color:rgba(0,212,255,0.25);background:rgba(0,212,255,0.06)}
+
+main{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:3rem 1.25rem 4rem}
+
+/* HERO */
+.hero{text-align:center;margin-bottom:3.5rem}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:.5rem;
+  background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.25);
+  border-radius:20px;padding:.3rem .9rem;font-size:.72rem;font-weight:700;
+  color:#c4b5fd;letter-spacing:.05em;text-transform:uppercase;margin-bottom:1.25rem;
+}
+.hero h1{
+  font-size:2.5rem;font-weight:900;letter-spacing:-.02em;margin-bottom:.85rem;
+  background:linear-gradient(135deg,#f0f4ff 30%,var(--cyan) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  line-height:1.15;
+}
+.hero p{font-size:1rem;color:var(--text-dim);max-width:520px;margin:0 auto;line-height:1.65}
+
+/* TOGGLE ANNUAL */
+.billing-toggle{
+  display:flex;align-items:center;justify-content:center;gap:.75rem;
+  margin-bottom:2.5rem;font-size:.85rem;color:var(--text-dim);
+}
+.toggle-switch{
+  width:44px;height:24px;background:rgba(255,255,255,0.08);border:1px solid var(--border2);
+  border-radius:12px;position:relative;cursor:pointer;transition:background .25s;
+}
+.toggle-switch.on{background:rgba(0,212,255,0.15);border-color:rgba(0,212,255,0.3)}
+.toggle-knob{
+  width:18px;height:18px;background:var(--text-dimmer);border-radius:50%;
+  position:absolute;top:2px;left:3px;transition:transform .25s,background .25s;
+}
+.toggle-switch.on .toggle-knob{transform:translateX(20px);background:var(--cyan)}
+.save-badge{
+  background:rgba(0,230,118,0.12);border:1px solid rgba(0,230,118,0.25);
+  color:var(--green);font-size:.7rem;font-weight:700;border-radius:10px;
+  padding:.15rem .55rem;
+}
+
+/* PLANS GRID */
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:1.5rem;align-items:start}
+.plan-card{
+  background:var(--surface);border:1px solid var(--border2);border-radius:20px;
+  padding:1.75rem 1.5rem;position:relative;overflow:hidden;
+  transition:border-color .25s,box-shadow .25s,transform .25s;
+}
+.plan-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:20px 20px 0 0;background:var(--c-accent)}
+.plan-card:hover{transform:translateY(-3px)}
+.plan-card.featured{
+  border-color:rgba(0,212,255,0.3);
+  box-shadow:0 0 0 1px rgba(0,212,255,0.08),0 20px 60px rgba(0,0,0,.4),0 0 40px rgba(0,212,255,0.06);
+}
+.plan-card.free{--c-accent:linear-gradient(90deg,var(--text-dimmer),rgba(255,255,255,0.1))}
+.plan-card.pro{--c-accent:linear-gradient(90deg,var(--cyan),var(--purple))}
+.plan-card.premium{--c-accent:linear-gradient(90deg,var(--yellow),var(--orange))}
+
+.featured-badge{
+  position:absolute;top:1.1rem;right:1.25rem;
+  background:rgba(0,212,255,0.14);border:1px solid rgba(0,212,255,0.3);
+  color:var(--cyan);font-size:.65rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  border-radius:8px;padding:.2rem .6rem;
+}
+
+.plan-name{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text-dimmer);margin-bottom:.6rem}
+.plan-price{margin-bottom:1.4rem}
+.plan-price .amount{font-size:2.6rem;font-weight:900;letter-spacing:-.03em;line-height:1}
+.plan-price .period{font-size:.85rem;color:var(--text-dim);margin-left:.2rem}
+.plan-price .free-tag{font-size:1.5rem;font-weight:900;color:var(--text)}
+.plan-price .annual-note{display:block;font-size:.72rem;color:var(--text-dimmer);margin-top:.3rem}
+
+.plan-desc{font-size:.83rem;color:var(--text-dim);margin-bottom:1.5rem;line-height:1.55}
+
+.features{list-style:none;margin-bottom:1.75rem;display:flex;flex-direction:column;gap:.65rem}
+.features li{display:flex;align-items:flex-start;gap:.65rem;font-size:.84rem;line-height:1.4}
+.features li .ico{font-size:.85rem;flex-shrink:0;margin-top:.05rem}
+.features li.dim{color:var(--text-dimmer)}
+.features li.dim .ico{opacity:.4}
+
+.btn-plan{
+  width:100%;padding:.82rem;border:none;border-radius:12px;
+  font-size:.9rem;font-weight:700;letter-spacing:.03em;cursor:pointer;
+  transition:box-shadow .2s,transform .15s,opacity .15s;
+  position:relative;overflow:hidden;
+}
+.btn-plan::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.1),transparent 60%);opacity:0;transition:opacity .2s;pointer-events:none}
+.btn-plan:hover:not(:disabled)::before{opacity:1}
+.btn-free{background:rgba(255,255,255,0.06);border:1px solid var(--border2);color:var(--text-dim)}
+.btn-free:hover:not(:disabled){background:rgba(255,255,255,0.1);color:var(--text)}
+.btn-pro{background:linear-gradient(135deg,#0e7490,#0891b2);color:#fff;box-shadow:0 4px 18px rgba(8,145,178,0.3)}
+.btn-pro:hover:not(:disabled){box-shadow:0 6px 28px rgba(8,145,178,0.5);transform:translateY(-1px)}
+.btn-premium{background:linear-gradient(135deg,#92400e,#d97706);color:#fff;box-shadow:0 4px 18px rgba(217,119,6,0.3)}
+.btn-premium:hover:not(:disabled){box-shadow:0 6px 28px rgba(217,119,6,0.5);transform:translateY(-1px)}
+.btn-plan:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+.soon-tag{font-size:.72rem;font-weight:600;opacity:.7;margin-left:.4rem}
+
+/* FAQ */
+.faq{margin-top:4rem}
+.faq h2{
+  text-align:center;font-size:1.5rem;font-weight:800;margin-bottom:2rem;
+  background:linear-gradient(135deg,#f0f4ff,var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.faq-list{display:flex;flex-direction:column;gap:.75rem;max-width:720px;margin:0 auto}
+.faq-item{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  overflow:hidden;cursor:pointer;
+}
+.faq-q{
+  padding:1rem 1.25rem;font-size:.9rem;font-weight:600;
+  display:flex;align-items:center;justify-content:space-between;gap:.75rem;
+  user-select:none;
+}
+.faq-q .arrow{color:var(--text-dimmer);font-size:.8rem;transition:transform .2s;flex-shrink:0}
+.faq-item.open .faq-q .arrow{transform:rotate(180deg)}
+.faq-a{
+  max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s ease;
+  font-size:.84rem;color:var(--text-dim);line-height:1.65;
+  padding:0 1.25rem;
+}
+.faq-item.open .faq-a{max-height:300px;padding:.15rem 1.25rem 1rem}
+
+/* CTA strip */
+.cta-strip{
+  margin-top:3.5rem;text-align:center;
+  background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.1);
+  border-radius:20px;padding:2.5rem 1.5rem;
+}
+.cta-strip h2{font-size:1.4rem;font-weight:800;margin-bottom:.65rem}
+.cta-strip p{color:var(--text-dim);font-size:.9rem;margin-bottom:1.5rem}
+.btn-cta{
+  display:inline-flex;align-items:center;gap:.5rem;
+  background:linear-gradient(135deg,#5b21b6,#4f46e5);color:#fff;
+  border:none;border-radius:12px;padding:.85rem 2rem;
+  font-size:.95rem;font-weight:700;cursor:pointer;
+  box-shadow:0 4px 24px rgba(79,70,229,0.4);text-decoration:none;
+  transition:box-shadow .2s,transform .15s;
+}
+.btn-cta:hover{box-shadow:0 6px 32px rgba(79,70,229,0.65);transform:translateY(-1px)}
+
+@media(max-width:680px){
+  .hero h1{font-size:1.8rem}
+  .plans{grid-template-columns:1fr}
+  main{padding:2rem 1rem 3rem}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">🎮 PokéBot</span>
+  <div class="nav-right">
+    <a href="/panel/" class="nav-link panel" id="panelLink" style="display:none">← Pannello</a>
+    <a href="/panel/login" class="nav-link" id="loginLink">Accedi</a>
+  </div>
+</nav>
+
+<main>
+  <div class="hero">
+    <div class="hero-badge">✦ Piani &amp; Prezzi</div>
+    <h1>Il piano giusto per ogni cacciatore</h1>
+    <p>Inizia gratis. Passa al Pro quando le carte si fanno serie. Nessun contratto a lungo termine.</p>
+  </div>
+
+  <div class="billing-toggle">
+    <span>Mensile</span>
+    <div class="toggle-switch" id="billingToggle" onclick="toggleBilling()">
+      <div class="toggle-knob"></div>
+    </div>
+    <span>Annuale</span>
+    <span class="save-badge">-20%</span>
+  </div>
+
+  <div class="plans">
+
+    <!-- FREE -->
+    <div class="plan-card free" id="card-free">
+      <div class="plan-name">Free</div>
+      <div class="plan-price">
+        <span class="free-tag">Gratis</span>
+        <span class="annual-note">per sempre</span>
+      </div>
+      <p class="plan-desc">Tutto quello che ti serve per iniziare a cacciare le prime carte rare.</p>
+      <ul class="features">
+        <li><span class="ico">✓</span> 5 keyword di ricerca</li>
+        <li><span class="ico">✓</span> Vinted + eBay</li>
+        <li><span class="ico">✓</span> Controllo ogni 15 minuti</li>
+        <li><span class="ico">✓</span> Notifiche Telegram</li>
+        <li><span class="ico">✓</span> Pannello web</li>
+        <li class="dim"><span class="ico">✗</span> Ricerche prioritarie</li>
+        <li class="dim"><span class="ico">✗</span> Statistiche avanzate</li>
+      </ul>
+      <button class="btn-plan btn-free" id="btnFree" onclick="goFree()">Inizia gratis</button>
+    </div>
+
+    <!-- PRO -->
+    <div class="plan-card pro featured" id="card-pro">
+      <div class="featured-badge">Più popolare</div>
+      <div class="plan-name">Pro</div>
+      <div class="plan-price">
+        <span class="amount" id="proPriceAmt">€9,99</span><span class="period">/mese</span>
+        <span class="annual-note" id="proPriceNote" style="display:none">fatturato annualmente</span>
+      </div>
+      <p class="plan-desc">Per i collezionisti seri che non vogliono perdersi nessuna opportunità.</p>
+      <ul class="features">
+        <li><span class="ico">✓</span> 25 keyword di ricerca</li>
+        <li><span class="ico">✓</span> Vinted + eBay</li>
+        <li><span class="ico">✓</span> Controllo ogni 15 minuti</li>
+        <li><span class="ico">✓</span> Notifiche Telegram</li>
+        <li><span class="ico">✓</span> Pannello web avanzato</li>
+        <li><span class="ico">⚡</span> Priorità coda di ricerca</li>
+        <li class="dim"><span class="ico">✗</span> Keyword illimitate</li>
+      </ul>
+      <button class="btn-plan btn-pro" disabled>
+        Inizia ora <span class="soon-tag">— prossimamente</span>
+      </button>
+    </div>
+
+    <!-- PREMIUM -->
+    <div class="plan-card premium" id="card-premium">
+      <div class="plan-name">Premium</div>
+      <div class="plan-price">
+        <span class="amount" id="premPriceAmt">€24,99</span><span class="period">/mese</span>
+        <span class="annual-note" id="premPriceNote" style="display:none">fatturato annualmente</span>
+      </div>
+      <p class="plan-desc">Il massimo delle prestazioni per chi tratta carte ad alto valore.</p>
+      <ul class="features">
+        <li><span class="ico">✓</span> Keyword illimitate</li>
+        <li><span class="ico">✓</span> Vinted + eBay</li>
+        <li><span class="ico">✓</span> Controllo ogni 15 minuti</li>
+        <li><span class="ico">✓</span> Notifiche Telegram</li>
+        <li><span class="ico">⚡</span> Massima priorità ricerche</li>
+        <li><span class="ico">⚡</span> Statistiche avanzate</li>
+        <li><span class="ico">⚡</span> Export dati CSV</li>
+      </ul>
+      <button class="btn-plan btn-premium" disabled>
+        Inizia ora <span class="soon-tag">— prossimamente</span>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- FAQ -->
+  <div class="faq">
+    <h2>Domande frequenti</h2>
+    <div class="faq-list">
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Come funziona il bot? <span class="arrow">▼</span>
+        </div>
+        <div class="faq-a">Il bot controlla periodicamente Vinted e eBay in cerca di articoli che corrispondono alle tue keyword. Quando trova qualcosa di nuovo, ti invia una notifica direttamente su Telegram con tutte le informazioni e il link all'articolo.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Come si collega Telegram? <span class="arrow">▼</span>
+        </div>
+        <div class="faq-a">Dopo la registrazione, vai nelle Impostazioni del pannello e inserisci il tuo Telegram Chat ID. Per ottenerlo, scrivi /start al bot su Telegram e lui ti risponderà con il tuo ID. Semplice!</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Quando saranno disponibili i piani a pagamento? <span class="arrow">▼</span>
+        </div>
+        <div class="faq-a">I piani Pro e Premium sono in fase di sviluppo e saranno disponibili presto. Registrati ora con il piano Free per essere tra i primi a sapere quando i piani avanzati saranno attivi.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Posso cambiare piano in futuro? <span class="arrow">▼</span>
+        </div>
+        <div class="faq-a">Sì, potrai fare l'upgrade o il downgrade in qualsiasi momento. Il cambio piano sarà immediato e il costo verrà proporzionato al periodo rimanente.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Cosa succede se supero il limite di keyword? <span class="arrow">▼</span>
+        </div>
+        <div class="faq-a">Non puoi aggiungere nuove keyword oltre il limite del tuo piano. Le keyword esistenti continueranno a funzionare normalmente. Per aggiungerne altre, fai l'upgrade del piano.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA Strip -->
+  <div class="cta-strip">
+    <h2>Pronto a non perdere più nessuna carta?</h2>
+    <p>Inizia gratis oggi — nessuna carta di credito richiesta.</p>
+    <a href="/panel/register" class="btn-cta">✨ Crea il tuo account gratuito</a>
+  </div>
+
+</main>
+
+<script>
+let isAnnual = false;
+
+// Mostra link al pannello se loggato
+const panelUser = JSON.parse(localStorage.getItem('panel_user') || 'null');
+if (panelUser) {
+  document.getElementById('panelLink').style.display = '';
+  document.getElementById('loginLink').style.display = 'none';
+  // Evidenzia il piano attuale
+  const plan = panelUser.plan || 'free';
+  const card = document.getElementById('card-' + plan);
+  if (card) {
+    const badge = document.createElement('div');
+    badge.style.cssText = 'position:absolute;top:1.1rem;left:1.25rem;background:rgba(0,230,118,.14);border:1px solid rgba(0,230,118,.3);color:#00e676;font-size:.65rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border-radius:8px;padding:.2rem .6rem;';
+    badge.textContent = 'Piano attuale';
+    card.style.position = 'relative';
+    card.prepend(badge);
+  }
+}
+
+function toggleBilling() {
+  isAnnual = !isAnnual;
+  document.getElementById('billingToggle').classList.toggle('on', isAnnual);
+  const proAmt   = isAnnual ? '€7,99' : '€9,99';
+  const premAmt  = isAnnual ? '€19,99' : '€24,99';
+  document.getElementById('proPriceAmt').textContent  = proAmt;
+  document.getElementById('premPriceAmt').textContent = premAmt;
+  document.getElementById('proPriceNote').style.display  = isAnnual ? '' : 'none';
+  document.getElementById('premPriceNote').style.display = isAnnual ? '' : 'none';
+}
+
+function toggleFaq(el) {
+  const item = el.closest('.faq-item');
+  const wasOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+  if (!wasOpen) item.classList.add('open');
+}
+
+function goFree() {
+  if (localStorage.getItem('panel_token')) {
+    location.href = '/panel/';
+  } else {
+    location.href = '/panel/register';
+  }
+}
+</script>
+</body>
+</html>

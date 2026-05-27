@@ -7,3 +7,8 @@ node_modules/
 # File di sistema e cache
 npm-debug.log
 .DS_Store
+
+# File di stato runtime — generati dal bot, NON sovrascrivere con deploy
+state.json
+found-items.json
+notified.json

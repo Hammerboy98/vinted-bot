@@ -25,7 +25,6 @@ body{
   overflow:hidden;
   position:relative;
 }
-/* Grid */
 body::before{
   content:'';position:fixed;inset:0;
   background-image:
@@ -35,7 +34,6 @@ body::before{
   animation:gridY 30s linear infinite;
   pointer-events:none;z-index:0;
 }
-/* Center glow */
 body::after{
   content:'';position:fixed;
   width:700px;height:700px;
@@ -45,7 +43,6 @@ body::after{
 }
 @keyframes gridY{0%{background-position:0 0}100%{background-position:0 48px}}
 
-/* Card */
 .card{
   position:relative;z-index:1;
   width:100%;max-width:390px;
@@ -54,20 +51,14 @@ body::after{
   border:1px solid rgba(0,212,255,0.15);
   border-radius:22px;
   padding:2.25rem 2rem;
-  box-shadow:
-    0 0 0 1px rgba(0,0,0,0.5),
-    0 30px 70px rgba(0,0,0,0.65),
-    0 0 60px rgba(0,212,255,0.04),
-    inset 0 1px 0 rgba(255,255,255,0.06);
+  box-shadow:0 0 0 1px rgba(0,0,0,0.5),0 30px 70px rgba(0,0,0,0.65),0 0 60px rgba(0,212,255,0.04),inset 0 1px 0 rgba(255,255,255,0.06);
 }
-/* Top highlight */
 .card::before{
   content:'';
   position:absolute;top:0;left:15%;right:15%;height:1px;
   background:linear-gradient(90deg,transparent,var(--cyan),transparent);
   opacity:.65;border-radius:1px;
 }
-/* Corner orb */
 .card::after{
   content:'';position:absolute;
   top:-70px;right:-50px;
@@ -76,8 +67,7 @@ body::after{
   pointer-events:none;
 }
 
-/* Brand */
-.brand{text-align:center;margin-bottom:2rem}
+.brand{text-align:center;margin-bottom:1.75rem}
 .brand-icon{
   font-size:3rem;display:inline-block;margin-bottom:.75rem;
   filter:drop-shadow(0 0 18px rgba(139,92,246,0.7));
@@ -95,29 +85,29 @@ body::after{
 }
 .brand p{font-size:.71rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase}
 
-/* Form */
 .field-label{
   display:flex;align-items:center;gap:.45rem;
   font-size:.7rem;font-weight:600;color:var(--text-dim);
   letter-spacing:.08em;text-transform:uppercase;margin-bottom:.5rem;
 }
-.pw-wrap{position:relative;margin-bottom:1.25rem}
-.pw-wrap input{
+.field-wrap{position:relative;margin-bottom:1rem}
+.field-wrap input{
   width:100%;
-  padding:.8rem 3rem .8rem 1rem;
+  padding:.8rem 1rem;
   background:rgba(4,8,20,0.7);
   border:1px solid rgba(255,255,255,0.09);
   border-radius:11px;
   color:var(--text);font-size:.95rem;letter-spacing:.02em;
   transition:border-color .2s,box-shadow .2s,background .2s;
 }
-.pw-wrap input::placeholder{color:rgba(238,242,255,0.2)}
-.pw-wrap input:focus{
+.field-wrap input::placeholder{color:rgba(238,242,255,0.2)}
+.field-wrap input:focus{
   outline:none;
   background:rgba(0,212,255,0.025);
   border-color:rgba(0,212,255,0.5);
   box-shadow:0 0 0 3px rgba(0,212,255,0.08),0 0 25px rgba(0,212,255,0.05);
 }
+.pw-wrap input{padding-right:3rem}
 .pw-toggle{
   position:absolute;right:.75rem;top:50%;transform:translateY(-50%);
   background:none;border:none;color:var(--text-dim);cursor:pointer;
@@ -126,7 +116,6 @@ body::after{
 }
 .pw-toggle:hover{color:var(--text)}
 
-/* Button */
 .btn-login{
   width:100%;padding:.82rem;
   background:linear-gradient(135deg,#5b21b6,#4f46e5);
@@ -136,6 +125,7 @@ body::after{
   box-shadow:0 4px 24px rgba(79,70,229,0.4);
   transition:box-shadow .2s,transform .15s,opacity .15s;
   position:relative;overflow:hidden;
+  margin-top:.25rem;
 }
 .btn-login::before{
   content:'';position:absolute;inset:0;
@@ -148,7 +138,6 @@ body::after{
 .btn-login:active:not(:disabled){transform:translateY(0)}
 .btn-login:disabled{opacity:.4;cursor:not-allowed;transform:none}
 
-/* Error */
 @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
 .error{
   display:none;align-items:center;gap:.6rem;
@@ -156,11 +145,21 @@ body::after{
   border:1px solid rgba(255,55,95,.3);
   color:#ff6b8a;
   padding:.65rem .9rem;border-radius:10px;
-  margin-bottom:1.25rem;
+  margin-bottom:1rem;
   font-size:.82rem;font-weight:500;
 }
 .error.show{display:flex}
 .error.shake{animation:shake .35s ease}
+
+.footer-link{
+  text-align:center;margin-top:1.25rem;
+  font-size:.78rem;color:var(--text-dim);
+}
+.footer-link a{
+  color:var(--cyan);text-decoration:none;font-weight:600;
+  transition:opacity .15s;
+}
+.footer-link a:hover{opacity:.8}
 </style>
 </head>
 <body>
@@ -168,26 +167,41 @@ body::after{
   <div class="brand">
     <div class="brand-icon">🎮</div>
     <h1>PokéBot Panel</h1>
-    <p>Sistema di controllo v2.0</p>
+    <p>Sistema di controllo v3.0</p>
   </div>
+
   <div class="error" id="err">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
     <span id="errMsg"></span>
   </div>
+
+  <div class="field-label">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+    Indirizzo email
+  </div>
+  <div class="field-wrap">
+    <input type="email" id="email" placeholder="mario@esempio.it" autocomplete="email" autofocus required>
+  </div>
+
   <div class="field-label">
     <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-    Password di accesso
+    Password
   </div>
-  <div class="pw-wrap">
-    <input type="password" id="pw" placeholder="••••••••••••" autofocus required>
-    <button class="pw-toggle" type="button" id="pwToggle" onclick="togglePw()" title="Mostra/nascondi">👁</button>
+  <div class="field-wrap pw-wrap">
+    <input type="password" id="pw" placeholder="••••••••••••" autocomplete="current-password" required>
+    <button class="pw-toggle" type="button" onclick="togglePw()" title="Mostra/nascondi">👁</button>
   </div>
+
   <button class="btn-login" id="btn" onclick="doLogin()">Accedi al sistema</button>
+
+  <div class="footer-link">
+    Non hai un account? <a href="/panel/register">Registrati</a>
+  </div>
 </div>
 <script>
 function togglePw(){
   const input=document.getElementById('pw');
-  const btn=document.getElementById('pwToggle');
+  const btn=document.querySelector('.pw-toggle');
   if(input.type==='password'){input.type='text';btn.textContent='🙈';}
   else{input.type='password';btn.textContent='👁';}
 }
@@ -200,9 +214,10 @@ function showError(msg){
   err.classList.add('shake');
 }
 async function doLogin(){
+  const email=document.getElementById('email').value.trim();
   const pw=document.getElementById('pw').value;
   const btn=document.getElementById('btn');
-  if(!pw){document.getElementById('pw').focus();return;}
+  if(!email||!pw){showError('Compila tutti i campi.');return;}
   btn.disabled=true;
   btn.textContent='Autenticazione…';
   document.getElementById('err').classList.remove('show','shake');
@@ -210,15 +225,16 @@ async function doLogin(){
     const r=await fetch('/panel/login',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({password:pw})
+      body:JSON.stringify({email,password:pw})
     });
     const data=await r.json();
     if(data.ok&&data.token){
       localStorage.setItem('panel_token',data.token);
+      localStorage.setItem('panel_user',JSON.stringify(data.user));
       btn.textContent='✓ Accesso autorizzato';
       location.href='/panel/';
     }else{
-      showError(data.error||'Password non corretta.');
+      showError(data.error||'Credenziali non valide.');
       btn.disabled=false;
       btn.textContent='Accedi al sistema';
     }
@@ -228,7 +244,7 @@ async function doLogin(){
     btn.textContent='Accedi al sistema';
   }
 }
-document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 if(localStorage.getItem('panel_token'))location.href='/panel/';
 </script>
 </body>
