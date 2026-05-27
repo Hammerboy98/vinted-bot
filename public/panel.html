@@ -928,7 +928,7 @@ async function fetchItems(resetPage) {
   if (activeKwFilter) params.set('kw', activeKwFilter);
 
   const d = await api('GET', '/panel/api/items?' + params);
-  if (!d) return;
+  if (!d || d.error) return;
 
   const newTotal = d.total || 0;
   if (newTotal > itemsTotal && itemsTotal > 0 && activeTab !== 'items') {
