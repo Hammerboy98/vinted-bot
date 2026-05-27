@@ -334,23 +334,44 @@ async function searchEbay(keyword) {
 // ============================================================
 // NOTIFICATION
 // ============================================================
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout ${ms}ms`)), ms)),
+  ]);
+}
+
 async function sendNotification(caption, photoUrl) {
   if (photoUrl) {
     try {
-      await bot.sendPhoto(CHAT_ID, photoUrl, { caption, parse_mode: "Markdown" });
+      await withTimeout(bot.sendPhoto(CHAT_ID, photoUrl, { caption, parse_mode: "Markdown" }), 15000);
       return;
     } catch {}
   }
-  await bot.sendMessage(CHAT_ID, caption, { parse_mode: "Markdown" });
+  try {
+    await withTimeout(bot.sendMessage(CHAT_ID, caption, { parse_mode: "Markdown" }), 15000);
+  } catch (err) {
+    console.error("❌ sendNotification timeout/errore:", err.message);
+  }
 }
 
 // ============================================================
 // MAIN CHECK LOOP
 // ============================================================
 async function checkAll() {
-  if (isRunning) return;
+  if (isRunning) {
+    const stuckMs = Date.now() - (checkAll._startedAt || 0);
+    if (stuckMs > 20 * 60 * 1000) {
+      console.warn("⚠️ isRunning bloccato da oltre 20 min — reset forzato.");
+      isRunning = false;
+      botStats.isRunning = false;
+    } else {
+      return;
+    }
+  }
   isRunning = true;
   botStats.isRunning = true;
+  checkAll._startedAt = Date.now();
   resetDailyStatsIfNeeded();
   console.log("🔍 Avvio controllo...");
 
