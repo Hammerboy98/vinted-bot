@@ -505,7 +505,7 @@ const requireAuth = (req, res, next) => {
 };
 
 // POST login: valida password, restituisce token al client
-app.post("/PokéBotControl/login", (req, res) => {
+app.post("/panel/login", (req, res) => {
   const pwd = (req.body.password || "").trim();
   if (pwd === PANEL_PASSWORD) {
     console.log("✅ Panel login OK");
@@ -517,14 +517,14 @@ app.post("/PokéBotControl/login", (req, res) => {
 
 // HTML routes — servono i file statici, nessuna auth server-side
 // (l'auth è gestita dal JS nel browser tramite localStorage)
-app.get("/PokéBotControl/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-app.get("/PokéBotControl/logout", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-app.get(["/PokéBotControl/pannello", "/PokéBotControl/pannello/"], (req, res) => res.sendFile(path.join(__dirname, "public", "panel.html")));
+app.get("/panel/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+app.get("/panel/logout", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+app.get(["/panel", "/panel/"], (req, res) => res.sendFile(path.join(__dirname, "public", "panel.html")));
 
 // ============================================================
 // PANEL API
 // ============================================================
-app.get("/PokéBotControl/api/status", requireAuth, (req, res) => {
+app.get("/panel/api/status", requireAuth, (req, res) => {
   res.json({
     ...botStats,
     keywords: KEYWORDS_CONFIG.length,
@@ -533,11 +533,11 @@ app.get("/PokéBotControl/api/status", requireAuth, (req, res) => {
   });
 });
 
-app.get("/PokéBotControl/api/keywords", requireAuth, (req, res) => {
+app.get("/panel/api/keywords", requireAuth, (req, res) => {
   res.json({ keywords: KEYWORDS_CONFIG });
 });
 
-app.post("/PokéBotControl/api/keywords", requireAuth, (req, res) => {
+app.post("/panel/api/keywords", requireAuth, (req, res) => {
   const { search } = req.body;
   if (!search) return res.status(400).json({ error: "Campo 'search' obbligatorio." });
 
@@ -551,7 +551,7 @@ app.post("/PokéBotControl/api/keywords", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete("/PokéBotControl/api/keywords", requireAuth, (req, res) => {
+app.delete("/panel/api/keywords", requireAuth, (req, res) => {
   const { search } = req.body;
   const before = KEYWORDS_CONFIG.length;
   KEYWORDS_CONFIG = KEYWORDS_CONFIG.filter((k) => k.search !== search);
@@ -562,7 +562,7 @@ app.delete("/PokéBotControl/api/keywords", requireAuth, (req, res) => {
   res.status(404).json({ error: "Keyword non trovata." });
 });
 
-app.post("/PokéBotControl/api/toggle/:platform", requireAuth, (req, res) => {
+app.post("/panel/api/toggle/:platform", requireAuth, (req, res) => {
   const p = req.params.platform;
   if (p === "vinted") {
     botStats.vintedEnabled = !botStats.vintedEnabled;
@@ -575,13 +575,13 @@ app.post("/PokéBotControl/api/toggle/:platform", requireAuth, (req, res) => {
   res.status(400).json({ error: "Platform non valida." });
 });
 
-app.post("/PokéBotControl/api/run", requireAuth, (req, res) => {
+app.post("/panel/api/run", requireAuth, (req, res) => {
   if (isRunning) return res.json({ ok: false, message: "Già in esecuzione." });
   checkAll();
   res.json({ ok: true, message: "Controllo avviato." });
 });
 
-app.get("/PokéBotControl/api/items", requireAuth, (req, res) => {
+app.get("/panel/api/items", requireAuth, (req, res) => {
   res.json({ items: foundItems });
 });
 
