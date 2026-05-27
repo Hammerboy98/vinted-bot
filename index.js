@@ -1,3 +1,4 @@
+require("dotenv").config();
 const axios         = require("axios");
 const TelegramBot   = require("node-telegram-bot-api");
 const express       = require("express");
@@ -92,7 +93,9 @@ function getExcludeTerms(keyword) {
 // ============================================================
 // BOT STATE — globale (non per-utente)
 // ============================================================
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
+const bot = TELEGRAM_TOKEN
+  ? new TelegramBot(TELEGRAM_TOKEN, { polling: false })
+  : new Proxy({}, { get: () => () => Promise.resolve() });
 let isRunning     = false;
 let refreshPromise = null;
 

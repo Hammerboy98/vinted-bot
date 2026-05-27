@@ -5,6 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node --max-old-space-size=256 index.js",
+    "preview": "node preview.js",
     "build": "npm install"
   },
   "dependencies": {

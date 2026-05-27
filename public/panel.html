@@ -221,6 +221,8 @@ th.sorted-desc::after{content:' ↓';color:var(--cyan)}
   header h1{font-size:.85rem}
   .last-refresh{display:none}
   .upgrade-link{display:none!important}
+  .site-nav{padding:0 .75rem;top:55px}
+  .site-nav-link{padding:.45rem .6rem;font-size:.75rem}
   main{padding:1rem .75rem}
   .cards{grid-template-columns:1fr 1fr}
   .section{padding:1rem}
@@ -325,6 +327,22 @@ canvas#dailyChart{max-height:160px}
 /* ── LIVE INDICATOR ── */
 .live-label{display:inline-flex;align-items:center;gap:.4rem;font-size:.72rem;color:var(--orange);font-weight:700;animation:livePulse 2s ease-in-out infinite}
 @keyframes livePulse{0%,100%{opacity:1}50%{opacity:.55}}
+
+/* ── SITE NAV ── */
+.site-nav{background:rgba(3,7,18,.9);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.06);padding:0 2rem;position:sticky;top:65px;z-index:19}
+.site-nav-inner{display:flex;align-items:center;max-width:1100px;margin:0 auto}
+.site-nav-link{display:flex;align-items:center;gap:.35rem;padding:.55rem .95rem;color:var(--text-dim);text-decoration:none;font-size:.8rem;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s;font-family:'Space Grotesk',sans-serif;white-space:nowrap}
+.site-nav-link:hover{color:var(--text)}
+.site-nav-link.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+.site-nav-link .nav-badge{background:rgba(34,211,238,.12);color:var(--cyan);border-radius:5px;font-size:.6rem;padding:.05rem .32rem;font-weight:800}
+
+/* ── INNER CARD (sub-section inside pane-home) ── */
+.inner-card{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:1rem 1.25rem;margin-bottom:1.1rem}
+.inner-card .section-title{margin-bottom:.85rem}
+
+/* ── SELECT FIX — dropdown options visible on all OS ── */
+select{color-scheme:dark}
+select option{background:#0d1224;color:#f1f5f9}
 </style>
 </head>
 <body>
@@ -344,6 +362,12 @@ canvas#dailyChart{max-height:160px}
     <a href="#" class="logout-btn" onclick="doLogout();return false;">Esci →</a>
   </div>
 </header>
+<nav class="site-nav">
+  <div class="site-nav-inner">
+    <a href="/panel/" class="site-nav-link active">🎮 Pannello</a>
+    <a href="/pricing" class="site-nav-link">⚡ Piani</a>
+  </div>
+</nav>
 <main>
 
   <div class="warning-bar hidden" id="warnBar">
@@ -371,47 +395,13 @@ canvas#dailyChart{max-height:160px}
     </div>
   </div>
 
-  <!-- RECENT STRIP -->
-  <div class="recent-strip" id="recentStrip" style="display:none">
-    <div class="recent-strip-hdr">
-      <div class="strip-title">Ultimi trovati</div>
-      <a href="#" class="strip-link" onclick="switchTab('items');return false">Vedi tutti →</a>
-    </div>
-    <div class="recent-scroll" id="recentScroll"></div>
-  </div>
-
-  <!-- CHART -->
-  <div class="chart-section" id="chartSection" style="display:none">
-    <div class="chart-hdr">
-      <div class="section-title" style="margin:0">Articoli trovati — ultimi 7 giorni</div>
-      <div class="chart-legend">
-        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#8b5cf6"></div>Vinted</div>
-        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#3b82f6"></div>eBay</div>
-      </div>
-    </div>
-    <canvas id="dailyChart"></canvas>
-  </div>
-
-  <!-- PIATTAFORME -->
-  <div class="section">
-    <div class="section-title">Piattaforme</div>
-    <div class="platforms">
-      <div class="plat">
-        <span>🟣 Vinted</span>
-        <button class="tog" id="vintedTog" onclick="togglePlatform('vinted')">…</button>
-      </div>
-      <div class="plat">
-        <span>🔵 eBay</span>
-        <button class="tog" id="ebayTog" onclick="togglePlatform('ebay')">…</button>
-      </div>
-      <button class="btn btn-green" id="runBtn" onclick="runNow()" style="margin-left:auto">▶ Avvia controllo ora</button>
-    </div>
-  </div>
-
   <!-- TAB CONTAINER -->
   <div class="section" style="padding-bottom:1rem">
     <div class="tabs">
-      <button class="tab-btn active" id="tab-kw" onclick="switchTab('kw')">
+      <button class="tab-btn active" id="tab-home" onclick="switchTab('home')">
+        🏠 Panoramica
+      </button>
+      <button class="tab-btn" id="tab-kw" onclick="switchTab('kw')">
         🔑 Keywords <span class="tab-count" id="kwTabCount">0</span>
       </button>
       <button class="tab-btn" id="tab-items" onclick="switchTab('items')">
@@ -420,8 +410,50 @@ canvas#dailyChart{max-height:160px}
       </button>
     </div>
 
+    <!-- TAB: PANORAMICA -->
+    <div class="tab-pane active" id="pane-home">
+
+      <!-- PIATTAFORME -->
+      <div class="inner-card">
+        <div class="section-title">Piattaforme</div>
+        <div class="platforms">
+          <div class="plat">
+            <span>🟣 Vinted</span>
+            <button class="tog" id="vintedTog" onclick="togglePlatform('vinted')">…</button>
+          </div>
+          <div class="plat">
+            <span>🔵 eBay</span>
+            <button class="tog" id="ebayTog" onclick="togglePlatform('ebay')">…</button>
+          </div>
+          <button class="btn btn-green" id="runBtn" onclick="runNow()" style="margin-left:auto">▶ Avvia controllo ora</button>
+        </div>
+      </div>
+
+      <!-- RECENT STRIP -->
+      <div class="recent-strip" id="recentStrip" style="display:none">
+        <div class="recent-strip-hdr">
+          <div class="strip-title">Ultimi trovati</div>
+          <a href="#" class="strip-link" onclick="switchTab('items');return false">Vedi tutti →</a>
+        </div>
+        <div class="recent-scroll" id="recentScroll"></div>
+      </div>
+
+      <!-- CHART -->
+      <div class="chart-section" id="chartSection" style="display:none">
+        <div class="chart-hdr">
+          <div class="section-title" style="margin:0">Articoli trovati — ultimi 7 giorni</div>
+          <div class="chart-legend">
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#8b5cf6"></div>Vinted</div>
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#3b82f6"></div>eBay</div>
+          </div>
+        </div>
+        <canvas id="dailyChart"></canvas>
+      </div>
+
+    </div>
+
     <!-- TAB: KEYWORDS -->
-    <div class="tab-pane active" id="pane-kw">
+    <div class="tab-pane" id="pane-kw">
       <div class="upgrade-bar" id="upgradeBanner">
         <span id="upgradeBannerMsg">Hai raggiunto il limite del piano Free.</span>
         <a href="/pricing" class="upgrade-link">⚡ Upgrade</a>
@@ -593,7 +625,7 @@ if (new URLSearchParams(location.search).get('upgraded') === '1') {
 
 let allKeywords = [];
 let itemsTotal = 0;
-let activeTab = 'kw';
+let activeTab = 'home';
 let kwPage = 1;
 let itemsPage = 1;
 let itemsSortKey = null;
@@ -667,9 +699,7 @@ function switchTab(name) {
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('pane-' + name).classList.add('active');
-  if (name === 'items') {
-    document.getElementById('itemsBadge').style.display = 'none';
-  }
+  if (name === 'items') document.getElementById('itemsBadge').style.display = 'none';
 }
 
 // ── STATUS ───────────────────────────────────────────────────
