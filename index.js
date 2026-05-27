@@ -24,12 +24,13 @@ let VINTED_CSRF_TOKEN    = (process.env.VINTED_CSRF_TOKEN || "").replace(/[^\x20
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID        = process.env.CHAT_ID; // opzionale — per il messaggio di avvio
 const PORT           = process.env.PORT || 3000;
-const EBAY_APP_ID    = process.env.EBAY_APP_ID || "";
-const JWT_SECRET     = process.env.JWT_SECRET || "pokebot-jwt-secret-change-me";
+const EBAY_APP_ID       = process.env.EBAY_APP_ID || "";
+const EBAY_CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET || "";
+const JWT_SECRET        = process.env.JWT_SECRET || "pokebot-jwt-secret-change-me";
 
-if (!TELEGRAM_TOKEN)        console.error("🛑 TELEGRAM_TOKEN è obbligatorio.");
+if (!TELEGRAM_TOKEN)           console.error("🛑 TELEGRAM_TOKEN è obbligatorio.");
 if (!process.env.DATABASE_URL) console.error("🛑 DATABASE_URL è obbligatorio.");
-if (!EBAY_APP_ID)           console.warn("⚠️ EBAY_APP_ID non configurato — ricerca eBay disabilitata.");
+if (!EBAY_APP_ID || !EBAY_CLIENT_SECRET) console.warn("⚠️ EBAY_APP_ID/EBAY_CLIENT_SECRET non configurati — ricerca eBay disabilitata.");
 
 // ============================================================
 // USER AGENTS
@@ -277,29 +278,58 @@ async function searchVinted(keyword) {
 }
 
 // ============================================================
-// EBAY SEARCH
+// EBAY BROWSE API (OAuth client credentials)
 // ============================================================
+let ebayPausedUntil  = 0;
+let ebayAccessToken  = null;
+let ebayTokenExpiry  = 0;
+
+async function getEbayToken() {
+  if (ebayAccessToken && Date.now() < ebayTokenExpiry) return ebayAccessToken;
+  const creds = Buffer.from(`${EBAY_APP_ID}:${EBAY_CLIENT_SECRET}`).toString("base64");
+  const res = await axios.post(
+    "https://api.ebay.com/identity/v1/oauth2/token",
+    "grant_type=client_credentials&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope",
+    {
+      headers: {
+        "Authorization": `Basic ${creds}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      timeout: 10000,
+    }
+  );
+  ebayAccessToken = res.data.access_token;
+  ebayTokenExpiry = Date.now() + (res.data.expires_in - 120) * 1000;
+  console.log("🔑 eBay token ottenuto.");
+  return ebayAccessToken;
+}
+
 async function searchEbay(keyword) {
-  if (!EBAY_APP_ID) return [];
+  if (!EBAY_APP_ID || !EBAY_CLIENT_SECRET) return [];
+  if (Date.now() < ebayPausedUntil) {
+    console.log("  ⏸ eBay in pausa (rate limit) — skip");
+    return [];
+  }
   try {
-    const res = await axios.get("https://svcs.ebay.com/services/search/FindingService/v1", {
-      params: {
-        "OPERATION-NAME": "findItemsByKeywords",
-        "SERVICE-VERSION": "1.0.0",
-        "SECURITY-APPNAME": EBAY_APP_ID,
-        "RESPONSE-DATA-FORMAT": "JSON",
-        "GLOBAL-ID": "EBAY-IT",
-        keywords: keyword,
-        "paginationInput.entriesPerPage": 50,
-        sortOrder: "StartTimeNewest",
+    const token = await getEbayToken();
+    const res = await axios.get("https://api.ebay.com/buy/browse/v1/item_summary/search", {
+      params: { q: keyword, limit: 50, sort: "newlyListed" },
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "X-EBAY-C-MARKETPLACE-ID": "EBAY_IT",
       },
       timeout: 15000,
     });
-    const result = res.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item;
-    return Array.isArray(result) ? result : [];
+    return res.data?.itemSummaries || [];
   } catch (err) {
+    const status = err.response?.status;
     const body = err.response?.data ? JSON.stringify(err.response.data).slice(0, 400) : err.message;
-    console.error(`❌ Errore eBay "${keyword}": ${err.response?.status || ""} ${body}`);
+    if (status === 429) {
+      ebayPausedUntil = Date.now() + 60 * 60 * 1000;
+      console.warn(`⚠️ eBay rate limit — pausa 1h`);
+    } else {
+      console.error(`❌ Errore eBay "${keyword}": ${status || ""} ${body}`);
+    }
     return [];
   }
 }
@@ -382,16 +412,14 @@ async function checkAll() {
         const items = await searchEbay(keyword);
         if (!items.length) console.log("  ℹ️ eBay: 0 risultati");
         for (const item of items) {
-          const link  = item.viewItemURL?.[0];
-          const title = item.title?.[0] || "";
+          const link  = item.itemWebUrl;
+          const title = item.title || "";
           if (!link) continue;
           const titleNorm = normalize(title);
           if (!titleMatchesAll(titleNorm, filterTerms)) continue;
           if (excludeTerms.some(t => titleNorm.includes(normalize(t)))) continue;
-          const priceVal  = item.sellingStatus?.[0]?.currentPrice?.[0]?.["__value__"];
-          const priceCurr = item.sellingStatus?.[0]?.currentPrice?.[0]?.["@currencyId"] || "EUR";
-          const priceDisplay = priceVal ? `${priceVal} ${priceCurr}` : "N/D";
-          const image = item.galleryURL?.[0] || null;
+          const priceDisplay = item.price?.value ? `${item.price.value} ${item.price.currency || "EUR"}` : "N/D";
+          const image = item.image?.imageUrl || item.thumbnailImages?.[0]?.imageUrl || null;
           for (const u of ebayUsers) {
             const ins = await pool.query(
               `INSERT INTO found_items (user_id, platform, title, price, link, keyword, image)
