@@ -24,9 +24,15 @@ let VINTED_CSRF_TOKEN    = (process.env.VINTED_CSRF_TOKEN || "").replace(/[^\x20
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID        = process.env.CHAT_ID; // opzionale — per il messaggio di avvio
 const PORT           = process.env.PORT || 3000;
-const EBAY_APP_ID       = process.env.EBAY_APP_ID || "";
+const EBAY_APP_ID        = process.env.EBAY_APP_ID || "";
 const EBAY_CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET || "";
-const JWT_SECRET        = process.env.JWT_SECRET || "pokebot-jwt-secret-change-me";
+const JWT_SECRET         = process.env.JWT_SECRET || "pokebot-jwt-secret-change-me";
+
+const STRIPE_SECRET_KEY       = process.env.STRIPE_SECRET_KEY || "";
+const STRIPE_WEBHOOK_SECRET   = process.env.STRIPE_WEBHOOK_SECRET || "";
+const STRIPE_PRO_PRICE_ID     = process.env.STRIPE_PRO_PRICE_ID || "";
+const STRIPE_PREMIUM_PRICE_ID = process.env.STRIPE_PREMIUM_PRICE_ID || "";
+const stripe = STRIPE_SECRET_KEY ? require("stripe")(STRIPE_SECRET_KEY) : null;
 
 if (!TELEGRAM_TOKEN)           console.error("🛑 TELEGRAM_TOKEN è obbligatorio.");
 if (!process.env.DATABASE_URL) console.error("🛑 DATABASE_URL è obbligatorio.");
@@ -486,7 +492,7 @@ process.on("unhandledRejection", reason => console.error("❌ Unhandled rejectio
 // ============================================================
 const app = express();
 app.set("trust proxy", 1);
-app.use(express.json());
+app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true }));
 
 // ── AUTH MIDDLEWARE ──────────────────────────────────────────
@@ -600,7 +606,14 @@ app.get("/panel/api/status", requireAuth, async (req, res) => {
 
 // ── KEYWORDS API ─────────────────────────────────────────────
 app.get("/panel/api/keywords", requireAuth, async (req, res) => {
-  const r = await pool.query("SELECT search FROM keywords WHERE user_id = $1 ORDER BY created_at DESC", [req.user.userId]);
+  const r = await pool.query(`
+    SELECT k.search, COALESCE(COUNT(f.id), 0)::int AS item_count
+    FROM keywords k
+    LEFT JOIN found_items f ON f.keyword = k.search AND f.user_id = k.user_id
+    WHERE k.user_id = $1
+    GROUP BY k.search, k.created_at
+    ORDER BY k.created_at DESC
+  `, [req.user.userId]);
   res.json({ keywords: r.rows });
 });
 
@@ -633,17 +646,63 @@ app.delete("/panel/api/keywords", requireAuth, async (req, res) => {
 
 // ── ITEMS API ────────────────────────────────────────────────
 app.get("/panel/api/items", requireAuth, async (req, res) => {
-  const r = await pool.query(
-    `SELECT platform, title, price, link, keyword, image, found_at AS "foundAt"
-     FROM found_items WHERE user_id = $1 ORDER BY found_at DESC LIMIT 500`,
-    [req.user.userId]
-  );
-  res.json({ items: r.rows });
+  try {
+    const page     = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit    = Math.min(100, Math.max(5, parseInt(req.query.limit) || 15));
+    const offset   = (page - 1) * limit;
+    const platform = req.query.platform || null;
+    const q        = req.query.q ? `%${req.query.q}%` : null;
+    const sortKey  = req.query.sort === "price" ? "price" : "date";
+    const sortDir  = req.query.dir  === "asc"   ? "ASC"   : "DESC";
+
+    const conds  = ["user_id = $1"];
+    const params = [req.user.userId];
+    let i = 2;
+    if (platform) { conds.push(`platform = $${i++}`);                                params.push(platform); }
+    if (q)        { conds.push(`(title ILIKE $${i} OR keyword ILIKE $${i})`); params.push(q); i++; }
+    if (req.query.kw) { conds.push(`keyword = $${i++}`); params.push(req.query.kw); }
+
+    const where     = conds.join(" AND ");
+    const orderExpr = sortKey === "price"
+      ? `CAST(REGEXP_REPLACE(price, '[^0-9.]', '', 'g') AS NUMERIC) ${sortDir} NULLS LAST`
+      : `found_at ${sortDir}`;
+
+    const [itemsRes, countRes] = await Promise.all([
+      pool.query(
+        `SELECT platform, title, price, link, keyword, image, found_at AS "foundAt"
+         FROM found_items WHERE ${where} ORDER BY ${orderExpr} LIMIT $${i} OFFSET $${i + 1}`,
+        [...params, limit, offset]
+      ),
+      pool.query(`SELECT COUNT(*) FROM found_items WHERE ${where}`, params),
+    ]);
+
+    const total = parseInt(countRes.rows[0].count);
+    res.json({ items: itemsRes.rows, total, page, limit, pages: Math.ceil(total / limit) || 1 });
+  } catch (err) {
+    console.error("❌ /api/items:", err.message);
+    res.status(500).json({ error: "Errore del server." });
+  }
 });
 
 app.delete("/panel/api/items", requireAuth, async (req, res) => {
   await pool.query("DELETE FROM found_items WHERE user_id = $1", [req.user.userId]);
   res.json({ ok: true });
+});
+
+app.get("/panel/api/stats/daily", requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT DATE(found_at) AS date, platform, COUNT(*) AS count
+      FROM found_items
+      WHERE user_id = $1 AND found_at >= NOW() - INTERVAL '7 days'
+      GROUP BY DATE(found_at), platform
+      ORDER BY date ASC
+    `, [req.user.userId]);
+    res.json({ stats: r.rows });
+  } catch (err) {
+    console.error("❌ /api/stats/daily:", err.message);
+    res.status(500).json({ error: "Errore del server." });
+  }
 });
 
 // ── PLATFORM TOGGLE ──────────────────────────────────────────
@@ -656,6 +715,100 @@ app.post("/panel/api/toggle/:platform", requireAuth, async (req, res) => {
     [req.user.userId]
   );
   res.json({ enabled: r.rows[0].enabled });
+});
+
+// ── STRIPE ───────────────────────────────────────────────────
+app.post("/panel/api/stripe/webhook", async (req, res) => {
+  if (!stripe || !STRIPE_WEBHOOK_SECRET) return res.sendStatus(200);
+  const sig = req.headers["stripe-signature"];
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error("❌ Stripe webhook:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object;
+    const { userId, plan } = session.metadata || {};
+    if (userId && plan) {
+      await pool.query(
+        "UPDATE users SET plan = $1, stripe_subscription_id = $2 WHERE id = $3",
+        [plan, session.subscription, parseInt(userId)]
+      );
+      console.log(`✅ Stripe: utente ${userId} → piano ${plan}`);
+    }
+  }
+
+  if (event.type === "customer.subscription.deleted") {
+    const sub = event.data.object;
+    await pool.query(
+      "UPDATE users SET plan = 'free', stripe_subscription_id = NULL WHERE stripe_subscription_id = $1",
+      [sub.id]
+    );
+    console.log(`⬇️ Stripe: subscription ${sub.id} cancellata → free`);
+  }
+
+  res.sendStatus(200);
+});
+
+app.post("/panel/api/stripe/checkout", requireAuth, async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: "Stripe non configurato." });
+  const { plan } = req.body;
+  const priceId = plan === "premium" ? STRIPE_PREMIUM_PRICE_ID : STRIPE_PRO_PRICE_ID;
+  if (!priceId) return res.status(503).json({ error: "Price ID non configurato per questo piano." });
+
+  try {
+    const userRes = await pool.query("SELECT * FROM users WHERE id = $1", [req.user.userId]);
+    const user = userRes.rows[0];
+    if (!user) return res.status(404).json({ error: "Utente non trovato." });
+
+    let customerId = user.stripe_customer_id;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name:  `${user.first_name} ${user.last_name}`,
+        metadata: { userId: String(user.id) },
+      });
+      customerId = customer.id;
+      await pool.query("UPDATE users SET stripe_customer_id = $1 WHERE id = $2", [customerId, user.id]);
+    }
+
+    const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+    const session = await stripe.checkout.sessions.create({
+      customer:    customerId,
+      mode:        "subscription",
+      line_items:  [{ price: priceId, quantity: 1 }],
+      success_url: `${baseUrl}/panel/?upgraded=1`,
+      cancel_url:  `${baseUrl}/pricing`,
+      metadata:    { userId: String(user.id), plan },
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error("❌ Stripe checkout:", err.message);
+    res.status(500).json({ error: "Errore creazione checkout." });
+  }
+});
+
+app.post("/panel/api/stripe/portal", requireAuth, async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: "Stripe non configurato." });
+  try {
+    const userRes    = await pool.query("SELECT stripe_customer_id FROM users WHERE id = $1", [req.user.userId]);
+    const customerId = userRes.rows[0]?.stripe_customer_id;
+    if (!customerId) return res.status(400).json({ error: "Nessun abbonamento Stripe trovato." });
+
+    const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+    const session = await stripe.billingPortal.sessions.create({
+      customer:   customerId,
+      return_url: `${baseUrl}/pricing`,
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error("❌ Stripe portal:", err.message);
+    res.status(500).json({ error: "Errore apertura portal." });
+  }
 });
 
 // ── RUN NOW ──────────────────────────────────────────────────

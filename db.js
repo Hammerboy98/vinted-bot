@@ -46,6 +46,10 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_keywords_user    ON keywords(user_id);
       CREATE INDEX IF NOT EXISTS idx_found_items_user ON found_items(user_id, found_at DESC);
     `);
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id     VARCHAR(100) UNIQUE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(100);
+    `);
     console.log("✅ Database schema inizializzato.");
   } finally {
     client.release();

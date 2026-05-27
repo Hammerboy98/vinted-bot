@@ -261,8 +261,8 @@ main{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:3rem 1.2
         <li><span class="ico">⚡</span> Priorità coda di ricerca</li>
         <li class="dim"><span class="ico">✗</span> Keyword illimitate</li>
       </ul>
-      <button class="btn-plan btn-pro" disabled>
-        Inizia ora <span class="soon-tag">— prossimamente</span>
+      <button class="btn-plan btn-pro" id="btnPro" onclick="checkout('pro')">
+        Inizia ora
       </button>
     </div>
 
@@ -283,8 +283,8 @@ main{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:3rem 1.2
         <li><span class="ico">⚡</span> Statistiche avanzate</li>
         <li><span class="ico">⚡</span> Export dati CSV</li>
       </ul>
-      <button class="btn-plan btn-premium" disabled>
-        Inizia ora <span class="soon-tag">— prossimamente</span>
+      <button class="btn-plan btn-premium" id="btnPremium" onclick="checkout('premium')">
+        Inizia ora
       </button>
     </div>
 
@@ -310,7 +310,7 @@ main{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:3rem 1.2
         <div class="faq-q" onclick="toggleFaq(this)">
           Quando saranno disponibili i piani a pagamento? <span class="arrow">▼</span>
         </div>
-        <div class="faq-a">I piani Pro e Premium sono in fase di sviluppo e saranno disponibili presto. Registrati ora con il piano Free per essere tra i primi a sapere quando i piani avanzati saranno attivi.</div>
+        <div class="faq-a">I piani Pro e Premium sono disponibili ora. Clicca "Inizia ora" sulla card del piano desiderato per procedere con il pagamento sicuro tramite Stripe.</div>
       </div>
       <div class="faq-item">
         <div class="faq-q" onclick="toggleFaq(this)">
@@ -344,7 +344,7 @@ const panelUser = JSON.parse(localStorage.getItem('panel_user') || 'null');
 if (panelUser) {
   document.getElementById('panelLink').style.display = '';
   document.getElementById('loginLink').style.display = 'none';
-  // Evidenzia il piano attuale
+
   const plan = panelUser.plan || 'free';
   const card = document.getElementById('card-' + plan);
   if (card) {
@@ -353,6 +353,21 @@ if (panelUser) {
     badge.textContent = 'Piano attuale';
     card.style.position = 'relative';
     card.prepend(badge);
+  }
+
+  // Nascondi il bottone del piano attuale, mostra "Gestisci" se pagante
+  if (plan === 'pro')     { document.getElementById('btnPro').textContent     = 'Piano attuale'; document.getElementById('btnPro').disabled     = true; }
+  if (plan === 'premium') { document.getElementById('btnPremium').textContent = 'Piano attuale'; document.getElementById('btnPremium').disabled = true; }
+
+  if (plan !== 'free') {
+    const manageBtn = document.createElement('button');
+    manageBtn.id = 'btnManage';
+    manageBtn.style.cssText = 'display:block;margin:2rem auto 0;padding:.65rem 1.5rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:var(--text-dim);font-size:.85rem;cursor:pointer;transition:background .15s,color .15s;';
+    manageBtn.textContent = '⚙️ Gestisci abbonamento';
+    manageBtn.onmouseenter = () => { manageBtn.style.background='rgba(255,255,255,0.1)'; manageBtn.style.color='#fff'; };
+    manageBtn.onmouseleave = () => { manageBtn.style.background='rgba(255,255,255,0.06)'; manageBtn.style.color='var(--text-dim)'; };
+    manageBtn.onclick = manageSubscription;
+    document.querySelector('.plans-grid').after(manageBtn);
   }
 }
 
@@ -379,6 +394,54 @@ function goFree() {
     location.href = '/panel/';
   } else {
     location.href = '/panel/register';
+  }
+}
+
+async function checkout(plan) {
+  const token = localStorage.getItem('panel_token');
+  if (!token) { location.href = '/panel/register'; return; }
+
+  const btn = document.getElementById(plan === 'pro' ? 'btnPro' : 'btnPremium');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Reindirizzamento…';
+
+  try {
+    const res = await fetch('/panel/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ plan }),
+    });
+    const data = await res.json();
+    if (data.url) {
+      location.href = data.url;
+    } else {
+      alert(data.error || 'Errore durante il checkout.');
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  } catch {
+    alert('Errore di rete. Riprova.');
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+async function manageSubscription() {
+  const token = localStorage.getItem('panel_token');
+  if (!token) return;
+  const btn = document.getElementById('btnManage');
+  btn.disabled = true;
+  btn.textContent = 'Apertura…';
+  try {
+    const res  = await fetch('/panel/api/stripe/portal', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+    const data = await res.json();
+    if (data.url) location.href = data.url;
+    else { alert(data.error || 'Errore.'); btn.disabled = false; btn.textContent = 'Gestisci abbonamento'; }
+  } catch {
+    alert('Errore di rete.');
+    btn.disabled = false;
+    btn.textContent = 'Gestisci abbonamento';
   }
 }
 </script>
