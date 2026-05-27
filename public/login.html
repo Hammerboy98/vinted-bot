@@ -6,39 +6,61 @@
 <title>PokéBot — Login</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d1117;font-family:system-ui,-apple-system,sans-serif;color:#c9d1d9}
-.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:2rem;width:100%;max-width:360px}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d1117;font-family:system-ui,-apple-system,sans-serif;color:#c9d1d9;padding:1.25rem}
+.card{background:#161b22;border:1px solid #30363d;border-radius:14px;padding:2rem;width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.45)}
 .icon{font-size:2.5rem;text-align:center;margin-bottom:0.5rem}
-h1{font-size:1.4rem;text-align:center;margin-bottom:1.5rem;font-weight:700}
-label{display:block;font-size:0.8rem;color:#8b949e;margin-bottom:0.3rem}
-input[type=password]{width:100%;padding:0.6rem 0.8rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:1rem;margin-bottom:1rem}
-input[type=password]:focus{outline:none;border-color:#7c3aed}
-button{width:100%;padding:0.7rem;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer}
-button:hover{background:#6d28d9}
-button:disabled{opacity:.5;cursor:not-allowed}
-.error{background:rgba(218,54,51,0.12);border:1px solid #da3633;color:#f85149;padding:0.6rem 0.8rem;border-radius:8px;margin-bottom:1rem;font-size:0.875rem;display:none}
+h1{font-size:1.35rem;text-align:center;margin-bottom:0.3rem;font-weight:700}
+.subtitle{font-size:0.8rem;color:#8b949e;text-align:center;margin-bottom:1.75rem}
+label{display:block;font-size:0.78rem;color:#8b949e;margin-bottom:0.3rem;font-weight:500}
+.pw-wrap{position:relative;margin-bottom:1rem}
+.pw-wrap input{width:100%;padding:0.65rem 2.75rem 0.65rem 0.85rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:1rem;transition:border-color .15s,box-shadow .15s}
+.pw-wrap input:focus{outline:none;border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.12)}
+.pw-toggle{position:absolute;right:0.6rem;top:50%;transform:translateY(-50%);background:none;border:none;color:#8b949e;cursor:pointer;padding:0.25rem;font-size:1.05rem;line-height:1;width:auto;transition:color .15s}
+.pw-toggle:hover{color:#c9d1d9}
+.btn-login{width:100%;padding:0.75rem;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:background .15s}
+.btn-login:hover:not(:disabled){background:#6d28d9}
+.btn-login:disabled{opacity:.5;cursor:not-allowed}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+.error{background:rgba(218,54,51,.1);border:1px solid rgba(218,54,51,.35);color:#f85149;padding:0.65rem 0.85rem;border-radius:8px;margin-bottom:1rem;font-size:0.85rem;display:none}
+.error.show{display:block}
+.error.shake{animation:shake .35s ease}
 </style>
 </head>
 <body>
 <div class="card">
   <div class="icon">🎮</div>
   <h1>PokéBot Panel</h1>
-  <div class="error" id="err">⚠️ Password non corretta.</div>
-  <div>
-    <label for="pw">Password</label>
+  <p class="subtitle">Inserisci la password per continuare</p>
+  <div class="error" id="err"></div>
+  <label for="pw">Password</label>
+  <div class="pw-wrap">
     <input type="password" id="pw" placeholder="••••••••" autofocus required>
-    <button id="btn" onclick="doLogin()">Accedi</button>
+    <button class="pw-toggle" type="button" id="pwToggle" onclick="togglePw()" title="Mostra/nascondi">👁</button>
   </div>
+  <button class="btn-login" id="btn" onclick="doLogin()">Accedi</button>
 </div>
 <script>
+function togglePw() {
+  const input = document.getElementById('pw');
+  const btn = document.getElementById('pwToggle');
+  if (input.type === 'password') { input.type = 'text'; btn.textContent = '🙈'; }
+  else { input.type = 'password'; btn.textContent = '👁'; }
+}
+function showError(msg) {
+  const err = document.getElementById('err');
+  err.textContent = msg;
+  err.classList.remove('shake');
+  err.classList.add('show');
+  void err.offsetWidth;
+  err.classList.add('shake');
+}
 async function doLogin() {
   const pw = document.getElementById('pw').value;
   const btn = document.getElementById('btn');
-  const err = document.getElementById('err');
-  if (!pw) return;
+  if (!pw) { document.getElementById('pw').focus(); return; }
   btn.disabled = true;
-  btn.textContent = 'Accesso...';
-  err.style.display = 'none';
+  btn.textContent = 'Accesso in corso…';
+  document.getElementById('err').classList.remove('show', 'shake');
   try {
     const r = await fetch('/panel/login', {
       method: 'POST',
@@ -48,22 +70,20 @@ async function doLogin() {
     const data = await r.json();
     if (data.ok && data.token) {
       localStorage.setItem('panel_token', data.token);
+      btn.textContent = '✓ Accesso effettuato';
       location.href = '/panel/';
     } else {
-      err.textContent = '⚠️ ' + (data.error || 'Password non corretta.');
-      err.style.display = 'block';
+      showError('⚠️ ' + (data.error || 'Password non corretta.'));
       btn.disabled = false;
       btn.textContent = 'Accedi';
     }
   } catch {
-    err.textContent = '⚠️ Errore di connessione. Riprova.';
-    err.style.display = 'block';
+    showError('⚠️ Errore di connessione. Riprova.');
     btn.disabled = false;
     btn.textContent = 'Accedi';
   }
 }
 document.getElementById('pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-// Se già loggato, vai al pannello
 if (localStorage.getItem('panel_token')) location.href = '/panel/';
 </script>
 </body>

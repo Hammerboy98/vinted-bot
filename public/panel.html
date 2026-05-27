@@ -102,10 +102,30 @@ tr:last-child td{border-bottom:none}
 .pg-btn[disabled]{opacity:.35;cursor:not-allowed}
 .pg-info{color:#8b949e;font-size:0.82rem;min-width:90px;text-align:center}
 
-@media(max-width:600px){
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+@media(max-width:640px){
+  header{padding:0.7rem 1rem}
+  header h1{font-size:0.95rem}
+  main{padding:1rem 0.75rem}
   .cards{grid-template-columns:1fr 1fr}
-  .platforms{flex-direction:column;align-items:flex-start}
+  .section{padding:1rem}
+  .platforms{flex-direction:column;align-items:stretch;gap:0.75rem}
+  .plat{justify-content:space-between}
+  #runBtn{width:100%;margin-left:0 !important}
+  .filter-bar{flex-direction:column;gap:0.6rem}
+  .filter-bar>*{width:100% !important;min-width:0;flex:none}
   .filter-bar-right{margin-left:0}
+  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tab-btn{white-space:nowrap;padding:0.55rem 0.9rem;font-size:0.82rem}
+  .modal-overlay{align-items:flex-end}
+  .modal{border-radius:16px 16px 0 0;max-width:100%;margin:0;padding:1.5rem 1.25rem;transform:translateY(100%)}
+  .modal-overlay.open .modal{transform:translateY(0)}
+  .toast{left:0.75rem;right:0.75rem;bottom:0.75rem;text-align:center}
+  .pg-btn{padding:0.3rem 0.55rem;font-size:0.78rem}
+  th,td{padding:0.4rem 0.55rem}
+  #pane-items th:nth-child(3),#pane-items td:nth-child(3),
+  #pane-items th:nth-child(5),#pane-items td:nth-child(5){display:none}
 }
 </style>
 </head>
@@ -171,6 +191,7 @@ tr:last-child td{border-bottom:none}
         </select>
         <button class="btn btn-purple filter-bar-right" onclick="openModal()">+ Aggiungi keyword</button>
       </div>
+      <div class="table-wrap">
       <table>
         <thead>
           <tr>
@@ -182,6 +203,7 @@ tr:last-child td{border-bottom:none}
           <tr><td colspan="2" class="empty">Caricamento...</td></tr>
         </tbody>
       </table>
+      </div>
       <div class="tbl-footer" id="kwFooter"></div>
       <div class="pagination" id="kwPagination"></div>
     </div>
@@ -202,6 +224,7 @@ tr:last-child td{border-bottom:none}
           <option value="50">50 / pagina</option>
         </select>
       </div>
+      <div class="table-wrap">
       <table>
         <thead>
           <tr>
@@ -216,6 +239,7 @@ tr:last-child td{border-bottom:none}
           <tr><td colspan="5" class="empty">Caricamento...</td></tr>
         </tbody>
       </table>
+      </div>
       <div class="tbl-footer" id="itemsFooter"></div>
       <div class="pagination" id="itemsPagination"></div>
     </div>
