@@ -298,7 +298,8 @@ async function searchEbay(keyword) {
     const result = res.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item;
     return Array.isArray(result) ? result : [];
   } catch (err) {
-    console.error(`❌ Errore eBay "${keyword}":`, err.message);
+    const body = err.response?.data ? JSON.stringify(err.response.data).slice(0, 400) : err.message;
+    console.error(`❌ Errore eBay "${keyword}": ${err.response?.status || ""} ${body}`);
     return [];
   }
 }
