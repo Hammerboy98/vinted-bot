@@ -4,8 +4,10 @@ const TelegramBot   = require("node-telegram-bot-api");
 const express       = require("express");
 const path          = require("path");
 const fs            = require("fs");
+const crypto        = require("crypto");
 const bcrypt        = require("bcryptjs");
 const jwt           = require("jsonwebtoken");
+const nodemailer    = require("nodemailer");
 const { addExtra }  = require("puppeteer-extra");
 const puppeteerCore = require("puppeteer-core");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
@@ -36,6 +38,25 @@ const STRIPE_PREMIUM_PRICE_ID = process.env.STRIPE_PREMIUM_PRICE_ID || "";
 const stripe = STRIPE_SECRET_KEY ? require("stripe")(STRIPE_SECRET_KEY) : null;
 
 const REGISTRATION_CODE = process.env.REGISTRATION_CODE || "";
+
+const SMTP_HOST = process.env.SMTP_HOST || "";
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || "587");
+const SMTP_USER = process.env.SMTP_USER || "";
+const SMTP_PASS = process.env.SMTP_PASS || "";
+const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
+
+let smtpTransporter = null;
+if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+  smtpTransporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+  });
+  console.log(`✅ SMTP configurato: ${SMTP_HOST}:${SMTP_PORT}`);
+} else {
+  console.warn("⚠️ SMTP non configurato (SMTP_HOST/USER/PASS) — reset password disabilitato.");
+}
 
 if (!TELEGRAM_TOKEN)           console.error("🛑 TELEGRAM_TOKEN è obbligatorio.");
 if (!process.env.DATABASE_URL) console.error("🛑 DATABASE_URL è obbligatorio.");
@@ -80,6 +101,7 @@ const EXCLUDE_TERMS = [
   "booster", "bustina", "display box",
   "raccoglitore", "binder",
   "gadget", "puzzle",
+  "fan art", "fanart", "fun art", "repro", "custom", "replica", "fake", "bootleg", "proxy",
   "golden goose", "backpack", "ledertasche", "tasche", "star wars",
   "superstar", "jacket", "giacca", "giubbotto", "pantalone", "vestito",
   "scarpa da ginnastica", "taglia", " tg ", " tg.", "size ",
@@ -133,10 +155,12 @@ const randomDelay = (min, max) => Math.floor(Math.random() * (max - min + 1) + m
 const normalize = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 const escapeTgMd = text => String(text).replace(/[_*`[]/g, "\\$&");
 
-function pricePassesLimit(priceDisplay, priceMax) {
-  if (priceMax === null || priceMax === undefined) return true;
+function pricePassesLimit(priceDisplay, priceMin, priceMax) {
   const n = parseFloat(String(priceDisplay).replace(",", ".").match(/[\d.]+/)?.[0]);
-  return isNaN(n) || n <= priceMax;
+  if (isNaN(n)) return true;
+  if (priceMax !== null && priceMax !== undefined && n > priceMax) return false;
+  if (priceMin !== null && priceMin !== undefined && n < priceMin) return false;
+  return true;
 }
 
 function getSearchTerms(searchStr) {
@@ -417,9 +441,9 @@ async function checkAll() {
   try {
     const usersRes = await pool.query(`
       SELECT u.id, u.telegram_chat_id, u.vinted_enabled, u.ebay_enabled, u.subito_enabled,
-             COALESCE(json_agg(json_build_object('search', k.search, 'price_max', k.price_max)) FILTER (WHERE k.search IS NOT NULL), '[]') AS keywords
+             COALESCE(json_agg(json_build_object('search', k.search, 'price_max', k.price_max, 'price_min', k.price_min)) FILTER (WHERE k.search IS NOT NULL), '[]') AS keywords
       FROM users u
-      INNER JOIN keywords k ON k.user_id = u.id
+      INNER JOIN keywords k ON k.user_id = u.id AND k.active = TRUE
       GROUP BY u.id
     `);
 
@@ -435,7 +459,7 @@ async function checkAll() {
       for (const kw of user.keywords) {
         const kwSearch = kw.search;
         if (!kwMap.has(kwSearch)) kwMap.set(kwSearch, []);
-        kwMap.get(kwSearch).push({ ...user, priceMax: kw.price_max ?? null });
+        kwMap.get(kwSearch).push({ ...user, priceMax: kw.price_max ?? null, priceMin: kw.price_min ?? null });
       }
     }
     console.log(`🔑 ${kwMap.size} keyword uniche per ${users.length} utenti.`);
@@ -458,7 +482,7 @@ async function checkAll() {
           if (excludeTerms.some(t => fullContent.includes(normalize(t)))) continue;
           const priceDisplay = item.price?.amount ? `${item.price.amount} ${item.price.currency || "€"}` : "N/D";
           for (const u of vintedUsers) {
-            if (!pricePassesLimit(priceDisplay, u.priceMax)) continue;
+            if (!pricePassesLimit(priceDisplay, u.priceMin, u.priceMax)) continue;
             const ins = await pool.query(
               `INSERT INTO found_items (user_id, platform, title, price, link, keyword, image)
                VALUES ($1,'vinted',$2,$3,$4,$5,$6) ON CONFLICT (user_id,link) DO NOTHING RETURNING id`,
@@ -489,7 +513,7 @@ async function checkAll() {
           const priceDisplay = item.price?.value ? `${item.price.value} ${item.price.currency || "EUR"}` : "N/D";
           const image = item.image?.imageUrl || item.thumbnailImages?.[0]?.imageUrl || null;
           for (const u of ebayUsers) {
-            if (!pricePassesLimit(priceDisplay, u.priceMax)) continue;
+            if (!pricePassesLimit(priceDisplay, u.priceMin, u.priceMax)) continue;
             const ins = await pool.query(
               `INSERT INTO found_items (user_id, platform, title, price, link, keyword, image)
                VALUES ($1,'ebay',$2,$3,$4,$5,$6) ON CONFLICT (user_id,link) DO NOTHING RETURNING id`,
@@ -521,7 +545,7 @@ async function checkAll() {
           const imageBase = item.images?.[0]?.cdnBaseUrl;
           const image = imageBase ? `${imageBase}?rule=phone_200` : null;
           for (const u of subitoUsers) {
-            if (!pricePassesLimit(priceDisplay, u.priceMax)) continue;
+            if (!pricePassesLimit(priceDisplay, u.priceMin, u.priceMax)) continue;
             const ins = await pool.query(
               `INSERT INTO found_items (user_id, platform, title, price, link, keyword, image)
                VALUES ($1,'subito',$2,$3,$4,$5,$6) ON CONFLICT (user_id,link) DO NOTHING RETURNING id`,
@@ -606,11 +630,12 @@ const requireAuth = (req, res, next) => {
 };
 
 // ── HTML ROUTES ──────────────────────────────────────────────
-app.get("/panel/login",    (_, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-app.get("/panel/logout",   (_, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-app.get("/panel/register", (_, res) => res.sendFile(path.join(__dirname, "public", "register.html")));
-app.get(["/panel", "/panel/"], (_, res) => res.sendFile(path.join(__dirname, "public", "panel.html")));
-app.get("/pricing",        (_, res) => res.sendFile(path.join(__dirname, "public", "pricing.html")));
+app.get("/panel/login",          (_, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+app.get("/panel/logout",         (_, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+app.get("/panel/register",       (_, res) => res.sendFile(path.join(__dirname, "public", "register.html")));
+app.get("/panel/reset-password", (_, res) => res.sendFile(path.join(__dirname, "public", "reset-password.html")));
+app.get(["/panel", "/panel/"],   (_, res) => res.sendFile(path.join(__dirname, "public", "panel.html")));
+app.get("/pricing",              (_, res) => res.sendFile(path.join(__dirname, "public", "pricing.html")));
 
 // ── AUTH API ─────────────────────────────────────────────────
 app.post("/panel/api/auth/register", async (req, res) => {
@@ -651,6 +676,64 @@ app.post("/panel/login", async (req, res) => {
     res.json({ ok: true, token, user: { id: user.id, email: user.email, firstName: user.first_name, lastName: user.last_name, plan: user.plan } });
   } catch (err) {
     console.error("❌ Login:", err.message);
+    res.status(500).json({ error: "Errore del server." });
+  }
+});
+
+app.post("/panel/api/auth/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email obbligatoria." });
+  try {
+    const r = await pool.query("SELECT id, email, first_name FROM users WHERE email = $1", [email.toLowerCase().trim()]);
+    // Always respond OK to prevent email enumeration
+    if (!r.rows[0]) return res.json({ ok: true });
+    const user = r.rows[0];
+    const token   = crypto.randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 60 * 60 * 1000);
+    await pool.query("UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE id = $3", [token, expires, user.id]);
+    const baseUrl  = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+    const resetUrl = `${baseUrl}/panel/reset-password?token=${token}`;
+    if (!smtpTransporter) {
+      console.log(`🔑 [DEV] Reset link per ${email}: ${resetUrl}`);
+      return res.json({ ok: true });
+    }
+    await smtpTransporter.sendMail({
+      from: SMTP_FROM,
+      to: user.email,
+      subject: "PokéBot — Reset Password",
+      html: `<div style="font-family:system-ui;max-width:520px;margin:0 auto;padding:2rem;background:#050b1a;color:#eef2ff;border-radius:16px;border:1px solid rgba(0,212,255,.15)">
+        <h2 style="color:#00d4ff;margin-bottom:1rem;font-size:1.3rem">🔐 Reset della password</h2>
+        <p style="margin-bottom:.75rem">Ciao <strong>${user.first_name}</strong>,</p>
+        <p style="color:rgba(238,242,255,.7);line-height:1.6;margin-bottom:1.5rem">Hai richiesto il reset della password per il tuo account PokéBot. Clicca sul pulsante qui sotto — il link è valido per <strong style="color:#eef2ff">1 ora</strong>.</p>
+        <a href="${resetUrl}" style="display:inline-block;background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#fff;padding:.85rem 1.75rem;border-radius:11px;text-decoration:none;font-weight:700;font-size:1rem;margin-bottom:1.5rem">Reimposta password →</a>
+        <p style="font-size:.78rem;color:rgba(238,242,255,.35);border-top:1px solid rgba(255,255,255,.06);padding-top:1rem;margin-top:.5rem">Se non hai richiesto il reset, ignora questa email. Il tuo account è al sicuro.</p>
+      </div>`,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("❌ forgot-password:", err.message);
+    res.status(500).json({ error: "Errore del server. Riprova." });
+  }
+});
+
+app.post("/panel/api/auth/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: "Dati mancanti." });
+  if (password.length < 8) return res.status(400).json({ error: "La password deve avere almeno 8 caratteri." });
+  try {
+    const r = await pool.query(
+      "SELECT id FROM users WHERE reset_token = $1 AND reset_token_expires > NOW()",
+      [token]
+    );
+    if (!r.rows[0]) return res.status(400).json({ error: "Link non valido o scaduto. Richiedine uno nuovo." });
+    const hash = await bcrypt.hash(password, 12);
+    await pool.query(
+      "UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL WHERE id = $2",
+      [hash, r.rows[0].id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("❌ reset-password:", err.message);
     res.status(500).json({ error: "Errore del server." });
   }
 });
@@ -714,12 +797,13 @@ app.get("/panel/api/status", requireAuth, async (req, res) => {
 app.get("/panel/api/keywords", requireAuth, async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT k.search, k.price_max, COALESCE(COUNT(f.id), 0)::int AS item_count,
+      SELECT k.search, k.price_max, k.price_min, k.active,
+             COALESCE(COUNT(f.id), 0)::int AS item_count,
              MAX(f.found_at) AS last_found_at
       FROM keywords k
       LEFT JOIN found_items f ON f.keyword = k.search AND f.user_id = k.user_id
       WHERE k.user_id = $1
-      GROUP BY k.search, k.price_max, k.created_at
+      GROUP BY k.search, k.price_max, k.price_min, k.active, k.created_at
       ORDER BY k.created_at DESC
     `, [req.user.userId]);
     res.json({ keywords: r.rows });
@@ -730,7 +814,7 @@ app.get("/panel/api/keywords", requireAuth, async (req, res) => {
 });
 
 app.post("/panel/api/keywords", requireAuth, async (req, res) => {
-  const { search, price_max } = req.body;
+  const { search, price_max, price_min } = req.body;
   if (!search) return res.status(400).json({ error: "Campo 'search' obbligatorio." });
   const planRes = await pool.query("SELECT plan FROM users WHERE id = $1", [req.user.userId]);
   const plan = planRes.rows[0]?.plan || req.user.plan;
@@ -744,8 +828,8 @@ app.post("/panel/api/keywords", requireAuth, async (req, res) => {
   }
   try {
     await pool.query(
-      "INSERT INTO keywords (user_id, search, price_max) VALUES ($1,$2,$3)",
-      [req.user.userId, search.toLowerCase().trim(), price_max || null]
+      "INSERT INTO keywords (user_id, search, price_max, price_min) VALUES ($1,$2,$3,$4)",
+      [req.user.userId, search.toLowerCase().trim(), price_max || null, price_min || null]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -768,12 +852,20 @@ app.delete("/panel/api/keywords", requireAuth, async (req, res) => {
 });
 
 app.patch("/panel/api/keywords", requireAuth, async (req, res) => {
-  const { search, price_max } = req.body;
+  const { search, price_max, price_min, active } = req.body;
   if (!search) return res.status(400).json({ error: "Campo 'search' obbligatorio." });
+  const setClauses = [];
+  const values = [];
+  let idx = 1;
+  if (price_max !== undefined) { setClauses.push(`price_max = $${idx++}`); values.push(price_max !== null ? (parseFloat(price_max) || null) : null); }
+  if (price_min !== undefined) { setClauses.push(`price_min = $${idx++}`); values.push(price_min !== null ? (parseFloat(price_min) || null) : null); }
+  if (active !== undefined) { setClauses.push(`active = $${idx++}`); values.push(active === true || active === "true"); }
+  if (!setClauses.length) return res.status(400).json({ error: "Nessun campo da aggiornare." });
+  values.push(req.user.userId, search);
   try {
     const r = await pool.query(
-      "UPDATE keywords SET price_max = $1 WHERE user_id = $2 AND search = $3",
-      [price_max !== undefined ? (price_max || null) : null, req.user.userId, search]
+      `UPDATE keywords SET ${setClauses.join(", ")} WHERE user_id = $${idx++} AND search = $${idx}`,
+      values
     );
     if (r.rowCount === 0) return res.status(404).json({ error: "Keyword non trovata." });
     res.json({ ok: true });

@@ -50,7 +50,11 @@ async function initDB() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id     VARCHAR(100) UNIQUE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(100);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS subito_enabled         BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token            VARCHAR(64);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires    TIMESTAMPTZ;
       ALTER TABLE keywords ADD COLUMN IF NOT EXISTS price_max           NUMERIC DEFAULT NULL;
+      ALTER TABLE keywords ADD COLUMN IF NOT EXISTS price_min           NUMERIC DEFAULT NULL;
+      ALTER TABLE keywords ADD COLUMN IF NOT EXISTS active              BOOLEAN NOT NULL DEFAULT TRUE;
     `);
     console.log("✅ Database schema inizializzato.");
   } finally {
