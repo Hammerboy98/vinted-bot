@@ -515,8 +515,8 @@ select option{background:#0d1224;color:#f1f5f9}
           <option value="subito">🟠 Subito</option>
         </select>
         <select id="itemPageSize" onchange="fetchItems(true)">
-          <option value="10">10 / pagina</option>
-          <option value="15" selected>15 / pagina</option>
+          <option value="auto" selected>Auto (righe complete)</option>
+          <option value="15">15 / pagina</option>
           <option value="25">25 / pagina</option>
           <option value="50">50 / pagina</option>
         </select>
@@ -689,6 +689,16 @@ let currentPlanLimit = 5;
 let _lastCheckTimeMs = null;
 let _statusPollInterval = null;
 let _fastPolling = false;
+
+// ── GRID UTILS ───────────────────────────────────────────────
+function calcCols(minCardW, gapW) {
+  const main = document.querySelector('main');
+  const w = main ? main.offsetWidth : (window.innerWidth - 64);
+  return Math.max(2, Math.floor((w + gapW) / (minCardW + gapW)));
+}
+function calcAutoPageSize() {
+  return calcCols(185, 14) * 3; // 3 righe complete
+}
 
 // ── API ──────────────────────────────────────────────────────
 async function api(method, url, body) {
@@ -1007,7 +1017,8 @@ async function fetchItems(resetPage) {
   if (resetPage) itemsPage = 1;
   const q        = document.getElementById('itemFilter').value.trim();
   const platform = document.getElementById('itemPlatform').value;
-  const limit    = parseInt(document.getElementById('itemPageSize').value) || 15;
+  const _psVal   = document.getElementById('itemPageSize').value;
+  const limit    = _psVal === 'auto' ? calcAutoPageSize() : Math.min(100, Math.max(5, parseInt(_psVal) || 15));
   const params   = new URLSearchParams({
     page:  itemsPage,
     limit,
@@ -1173,7 +1184,9 @@ function renderItems(items, total, totalPages) {
 
 // ── RECENT STRIP ──────────────────────────────────────────────
 async function fetchRecentItems() {
-  const d = await api('GET', '/panel/api/items?page=1&limit=20&sort=date&dir=desc');
+  const recentCols  = calcCols(155, 12);
+  const recentLimit = recentCols * 2; // 2 righe complete
+  const d = await api('GET', '/panel/api/items?page=1&limit=' + recentLimit + '&sort=date&dir=desc');
   if (!d || !d.items.length) return;
   document.getElementById('recentStrip').style.display = '';
   const nowMs = Date.now();
