@@ -1,5 +1,4 @@
 require("dotenv").config();
-const crypto        = require("crypto");
 const axios         = require("axios");
 const TelegramBot   = require("node-telegram-bot-api");
 const express       = require("express");
@@ -7,8 +6,6 @@ const path          = require("path");
 const fs            = require("fs");
 const bcrypt        = require("bcryptjs");
 const jwt           = require("jsonwebtoken");
-let nodemailer = null;
-try { nodemailer = require("nodemailer"); } catch { console.warn("⚠️ nodemailer non installato — email di verifica disabilitata."); }
 const { addExtra }  = require("puppeteer-extra");
 const puppeteerCore = require("puppeteer-core");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
@@ -38,57 +35,12 @@ const STRIPE_PRO_PRICE_ID     = process.env.STRIPE_PRO_PRICE_ID || "";
 const STRIPE_PREMIUM_PRICE_ID = process.env.STRIPE_PREMIUM_PRICE_ID || "";
 const stripe = STRIPE_SECRET_KEY ? require("stripe")(STRIPE_SECRET_KEY) : null;
 
-const SMTP_HOST = process.env.SMTP_HOST || "";
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || "587");
-const SMTP_USER = process.env.SMTP_USER || "";
-const SMTP_PASS = process.env.SMTP_PASS || "";
-const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER || "noreply@pokebot.app";
-const SMTP_ENABLED = !!(nodemailer && SMTP_HOST && SMTP_USER && SMTP_PASS);
+const REGISTRATION_CODE = process.env.REGISTRATION_CODE || "";
 
 if (!TELEGRAM_TOKEN)           console.error("🛑 TELEGRAM_TOKEN è obbligatorio.");
 if (!process.env.DATABASE_URL) console.error("🛑 DATABASE_URL è obbligatorio.");
 if (!EBAY_APP_ID || !EBAY_CLIENT_SECRET) console.warn("⚠️ EBAY_APP_ID/EBAY_CLIENT_SECRET non configurati — ricerca eBay disabilitata.");
-if (!SMTP_ENABLED) console.warn("⚠️ SMTP non configurato — la verifica email è disabilitata (nuovi utenti auto-verificati).");
-
-// ============================================================
-// EMAIL
-// ============================================================
-async function sendVerificationEmail(email, firstName, token) {
-  if (!SMTP_ENABLED) return false;
-  const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-  const link = `${baseUrl}/panel/api/auth/verify-email?token=${token}`;
-  try {
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST, port: SMTP_PORT, secure: SMTP_PORT === 465,
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
-    });
-    await transporter.sendMail({
-      from: `"PokéBot" <${SMTP_FROM}>`,
-      to: email,
-      subject: "Verifica il tuo account PokéBot",
-      html: `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;background:#050b1a;color:#eef2ff;border-radius:16px;overflow:hidden;border:1px solid rgba(0,212,255,0.2)">
-        <div style="background:linear-gradient(135deg,#4c1d95,#1d4ed8);padding:28px 32px;text-align:center">
-          <div style="font-size:2.5rem">🎮</div>
-          <h1 style="font-size:1.4rem;font-weight:800;color:#fff;margin:.5rem 0 0">PokéBot</h1>
-        </div>
-        <div style="padding:32px">
-          <p style="font-size:1rem;font-weight:600;margin-bottom:.75rem">Ciao ${firstName}! 👋</p>
-          <p style="color:rgba(238,242,255,0.75);line-height:1.6;margin-bottom:1.5rem">Clicca il pulsante qui sotto per verificare il tuo indirizzo email e attivare il tuo account PokéBot.</p>
-          <div style="text-align:center;margin:2rem 0">
-            <a href="${link}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#4c1d95,#4f46e5);color:#fff;border-radius:12px;text-decoration:none;font-weight:700;font-size:.95rem">✅ Verifica Email</a>
-          </div>
-          <p style="font-size:.75rem;color:rgba(238,242,255,0.35);line-height:1.5">Il link è valido per 24 ore. Se non hai creato un account su PokéBot, ignora questa email.</p>
-        </div>
-      </div>`,
-      text: `Ciao ${firstName}!\n\nVerifica il tuo account PokéBot:\n${link}\n\nIl link scade tra 24 ore.`,
-    });
-    console.log(`✅ Email di verifica inviata a ${email}`);
-    return true;
-  } catch (err) {
-    console.error("❌ sendVerificationEmail:", err.message);
-    return false;
-  }
-}
+if (!REGISTRATION_CODE) console.warn("⚠️ REGISTRATION_CODE non impostato — la registrazione è aperta a tutti.");
 
 // ============================================================
 // USER AGENTS
@@ -662,25 +614,20 @@ app.get("/pricing",        (_, res) => res.sendFile(path.join(__dirname, "public
 
 // ── AUTH API ─────────────────────────────────────────────────
 app.post("/panel/api/auth/register", async (req, res) => {
-  const { email, firstName, lastName, password } = req.body;
+  const { email, firstName, lastName, password, inviteCode } = req.body;
   if (!email || !firstName || !lastName || !password)
     return res.status(400).json({ error: "Tutti i campi sono obbligatori." });
   if (password.length < 8)
     return res.status(400).json({ error: "La password deve avere almeno 8 caratteri." });
+  if (REGISTRATION_CODE && inviteCode !== REGISTRATION_CODE)
+    return res.status(403).json({ error: "Codice invito non valido." });
   try {
-    const hash    = await bcrypt.hash(password, 12);
-    const verTok  = SMTP_ENABLED ? crypto.randomBytes(32).toString("hex") : null;
-    const verExp  = SMTP_ENABLED ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;
-    const result  = await pool.query(
-      `INSERT INTO users (email, first_name, last_name, password_hash, email_verified, email_verification_token, email_verification_expires)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, email, first_name, last_name, plan`,
-      [email.toLowerCase().trim(), firstName.trim(), lastName.trim(), hash, !SMTP_ENABLED, verTok, verExp]
+    const hash   = await bcrypt.hash(password, 12);
+    const result = await pool.query(
+      "INSERT INTO users (email, first_name, last_name, password_hash) VALUES ($1,$2,$3,$4) RETURNING id, email, first_name, last_name, plan",
+      [email.toLowerCase().trim(), firstName.trim(), lastName.trim(), hash]
     );
     const u = result.rows[0];
-    if (SMTP_ENABLED) {
-      await sendVerificationEmail(u.email, u.first_name, verTok);
-      return res.json({ ok: true, needsVerification: true });
-    }
     const token = jwt.sign({ userId: u.id, email: u.email, plan: u.plan }, JWT_SECRET, { expiresIn: "7d" });
     res.json({ ok: true, token, user: { id: u.id, email: u.email, firstName: u.first_name, lastName: u.last_name, plan: u.plan } });
   } catch (err) {
@@ -700,57 +647,10 @@ app.post("/panel/login", async (req, res) => {
     if (!user) return res.status(401).json({ ok: false, error: "Credenziali non valide." });
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(401).json({ ok: false, error: "Credenziali non valide." });
-    if (!user.email_verified) {
-      return res.status(403).json({ ok: false, notVerified: true, email: user.email, error: "Email non verificata. Controlla la tua casella di posta." });
-    }
     const token = jwt.sign({ userId: user.id, email: user.email, plan: user.plan }, JWT_SECRET, { expiresIn: "7d" });
     res.json({ ok: true, token, user: { id: user.id, email: user.email, firstName: user.first_name, lastName: user.last_name, plan: user.plan } });
   } catch (err) {
     console.error("❌ Login:", err.message);
-    res.status(500).json({ error: "Errore del server." });
-  }
-});
-
-app.get("/panel/api/auth/verify-email", async (req, res) => {
-  const { token } = req.query;
-  if (!token) return res.redirect("/panel/login?verifyError=1");
-  try {
-    const r = await pool.query(
-      "SELECT id FROM users WHERE email_verification_token = $1 AND email_verification_expires > NOW()",
-      [token]
-    );
-    if (!r.rows.length) return res.redirect("/panel/login?verifyError=1");
-    await pool.query(
-      "UPDATE users SET email_verified = TRUE, email_verification_token = NULL, email_verification_expires = NULL WHERE id = $1",
-      [r.rows[0].id]
-    );
-    res.redirect("/panel/login?verified=1");
-  } catch (err) {
-    console.error("❌ verify-email:", err.message);
-    res.redirect("/panel/login?verifyError=1");
-  }
-});
-
-app.post("/panel/api/auth/resend-verification", async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: "Email obbligatoria." });
-  try {
-    const r = await pool.query(
-      "SELECT id, first_name, email_verified FROM users WHERE email = $1",
-      [email.toLowerCase().trim()]
-    );
-    const user = r.rows[0];
-    if (!user || user.email_verified) return res.json({ ok: true });
-    const token   = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await pool.query(
-      "UPDATE users SET email_verification_token = $1, email_verification_expires = $2 WHERE id = $3",
-      [token, expires, user.id]
-    );
-    await sendVerificationEmail(email.toLowerCase().trim(), user.first_name, token);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error("❌ resend-verification:", err.message);
     res.status(500).json({ error: "Errore del server." });
   }
 });

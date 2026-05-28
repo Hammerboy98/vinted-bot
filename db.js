@@ -47,13 +47,10 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_found_items_user ON found_items(user_id, found_at DESC);
     `);
     await client.query(`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id          VARCHAR(100) UNIQUE;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id      VARCHAR(100);
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS subito_enabled              BOOLEAN NOT NULL DEFAULT TRUE;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified              BOOLEAN NOT NULL DEFAULT TRUE;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token    VARCHAR(100) UNIQUE;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_expires  TIMESTAMPTZ;
-      ALTER TABLE keywords ADD COLUMN IF NOT EXISTS price_max NUMERIC DEFAULT NULL;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id     VARCHAR(100) UNIQUE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(100);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS subito_enabled         BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE keywords ADD COLUMN IF NOT EXISTS price_max           NUMERIC DEFAULT NULL;
     `);
     console.log("✅ Database schema inizializzato.");
   } finally {

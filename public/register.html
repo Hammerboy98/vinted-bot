@@ -203,6 +203,11 @@ body::after{
     </div>
   </div>
 
+  <div class="field-group">
+    <label class="field-label" for="inviteCode">Codice invito</label>
+    <input type="text" id="inviteCode" placeholder="Inserisci il codice" autocomplete="off">
+  </div>
+
   <button class="btn-register" id="btn" onclick="doRegister()">Crea account</button>
 
   <p class="terms">Registrandoti accetti i termini di servizio e la privacy policy.</p>
@@ -252,6 +257,7 @@ async function doRegister(){
   const email=document.getElementById('email').value.trim();
   const pw=document.getElementById('pw').value;
   const pw2=document.getElementById('pw2').value;
+  const inviteCode=document.getElementById('inviteCode').value.trim();
   const btn=document.getElementById('btn');
 
   hideError();
@@ -265,7 +271,7 @@ async function doRegister(){
     const r=await fetch('/panel/api/auth/register',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({firstName,lastName,email,password:pw})
+      body:JSON.stringify({firstName,lastName,email,password:pw,inviteCode})
     });
     const data=await r.json();
     if(data.ok&&data.token){
@@ -273,23 +279,6 @@ async function doRegister(){
       localStorage.setItem('panel_user',JSON.stringify(data.user));
       btn.textContent='✓ Account creato!';
       location.href='/panel/';
-    }else if(data.ok&&data.needsVerification){
-      document.querySelector('.card').innerHTML=`
-        <div class="brand">
-          <div class="brand-icon">📬</div>
-          <h1>Controlla la tua email</h1>
-          <p>Verifica account inviata</p>
-        </div>
-        <div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.2);border-radius:14px;padding:1.25rem 1.2rem;margin-bottom:1.2rem;font-size:.88rem;color:rgba(238,242,255,.8);line-height:1.6">
-          Abbiamo inviato un link di verifica a <strong style="color:#00d4ff">${email}</strong>.<br>
-          Clicca il link nell'email per attivare il tuo account.
-        </div>
-        <p style="font-size:.75rem;color:rgba(238,242,255,.35);text-align:center;line-height:1.55">
-          Non trovi l'email? Controlla la cartella spam.<br>Il link scade tra 24 ore.
-        </p>
-        <div class="footer-link" style="margin-top:1.2rem">
-          Hai già verificato? <a href="/panel/login">Accedi</a>
-        </div>`;
     }else{
       showError(data.error||'Errore durante la registrazione.');
       btn.disabled=false;
