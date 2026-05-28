@@ -128,6 +128,13 @@ function saveState() {
 const delay = ms => new Promise(r => setTimeout(r, ms));
 const randomDelay = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
 const normalize = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const escapeTgMd = text => String(text).replace(/[_*`[]/g, "\\$&");
+
+function pricePassesLimit(priceDisplay, priceMax) {
+  if (priceMax === null || priceMax === undefined) return true;
+  const n = parseFloat(String(priceDisplay).replace(",", ".").match(/[\d.]+/)?.[0]);
+  return isNaN(n) || n <= priceMax;
+}
 
 function getSearchTerms(searchStr) {
   return normalize(searchStr)
@@ -344,6 +351,52 @@ async function searchEbay(keyword) {
 }
 
 // ============================================================
+// SUBITO.IT SEARCH  (HTML scraping + __NEXT_DATA__)
+// ============================================================
+let subitoPausedUntil = 0;
+
+async function searchSubito(keyword) {
+  if (Date.now() < subitoPausedUntil) {
+    console.log("  ⏸ Subito in pausa (rate limit) — skip");
+    return [];
+  }
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await axios.get("https://www.subito.it/annunci-italia/vendita/usato/", {
+        params: { q: keyword, o: 1 },
+        headers: {
+          "User-Agent": getRandomUA(),
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "it-IT,it;q=0.9",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "none",
+        },
+        timeout: 15000,
+      });
+      const m = res.data.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+      if (!m) { console.warn(`⚠️ Subito: __NEXT_DATA__ non trovato per "${keyword}"`); return []; }
+      const nd = JSON.parse(m[1]);
+      return nd?.props?.pageProps?.initialState?.items?.originalList || [];
+    } catch (err) {
+      const status = err.response?.status;
+      if (status === 429) {
+        subitoPausedUntil = Date.now() + 30 * 60 * 1000;
+        console.warn(`⚠️ Subito rate limit — pausa 30min`);
+        return [];
+      }
+      if (status === 403 && attempt < 2) {
+        await delay(randomDelay(5000, 10000));
+        continue;
+      }
+      console.error(`❌ Errore Subito "${keyword}": ${status || ""} ${err.message}`);
+      return [];
+    }
+  }
+  return [];
+}
+
+// ============================================================
 // MAIN CHECK LOOP — multi-utente
 // ============================================================
 async function checkAll() {
@@ -360,17 +413,16 @@ async function checkAll() {
 
   try {
     const usersRes = await pool.query(`
-      SELECT u.id, u.telegram_chat_id, u.vinted_enabled, u.ebay_enabled,
-             COALESCE(array_agg(k.search) FILTER (WHERE k.search IS NOT NULL), '{}') AS keywords
+      SELECT u.id, u.telegram_chat_id, u.vinted_enabled, u.ebay_enabled, u.subito_enabled,
+             COALESCE(json_agg(json_build_object('search', k.search, 'price_max', k.price_max)) FILTER (WHERE k.search IS NOT NULL), '[]') AS keywords
       FROM users u
       INNER JOIN keywords k ON k.user_id = u.id
-      WHERE u.telegram_chat_id IS NOT NULL AND u.telegram_chat_id != ''
       GROUP BY u.id
     `);
 
     const users = usersRes.rows;
     if (users.length === 0) {
-      console.log("ℹ️ Nessun utente con keyword + Telegram configurati.");
+      console.log("ℹ️ Nessun utente con keyword configurate.");
       return;
     }
 
@@ -378,8 +430,9 @@ async function checkAll() {
     const kwMap = new Map();
     for (const user of users) {
       for (const kw of user.keywords) {
-        if (!kwMap.has(kw)) kwMap.set(kw, []);
-        kwMap.get(kw).push(user);
+        const kwSearch = kw.search;
+        if (!kwMap.has(kwSearch)) kwMap.set(kwSearch, []);
+        kwMap.get(kwSearch).push({ ...user, priceMax: kw.price_max ?? null });
       }
     }
     console.log(`🔑 ${kwMap.size} keyword uniche per ${users.length} utenti.`);
@@ -402,14 +455,17 @@ async function checkAll() {
           if (excludeTerms.some(t => fullContent.includes(normalize(t)))) continue;
           const priceDisplay = item.price?.amount ? `${item.price.amount} ${item.price.currency || "€"}` : "N/D";
           for (const u of vintedUsers) {
+            if (!pricePassesLimit(priceDisplay, u.priceMax)) continue;
             const ins = await pool.query(
               `INSERT INTO found_items (user_id, platform, title, price, link, keyword, image)
                VALUES ($1,'vinted',$2,$3,$4,$5,$6) ON CONFLICT (user_id,link) DO NOTHING RETURNING id`,
               [u.id, item.title, priceDisplay, link, keyword, item.photo?.url || null]
             );
             if (!ins.rows.length) continue;
-            const caption = `🟣 *[VINTED]* Nuovo Articolo!\n🔎 Keyword: ${keyword}\n\n📛 *${item.title}*\n💰 *Prezzo:* ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
-            await sendNotificationTo(u.telegram_chat_id, caption, item.photo?.url);
+            if (u.telegram_chat_id) {
+              const caption = `🟣 *[VINTED]* Nuovo Articolo!\n🔎 Keyword: ${escapeTgMd(keyword)}\n\n📛 *${escapeTgMd(item.title)}*\n💰 *Prezzo:* ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
+              await sendNotificationTo(u.telegram_chat_id, caption, item.photo?.url);
+            }
             console.log(`  📨 [Vinted] ${item.title} → user ${u.id}`);
           }
         }
@@ -430,15 +486,50 @@ async function checkAll() {
           const priceDisplay = item.price?.value ? `${item.price.value} ${item.price.currency || "EUR"}` : "N/D";
           const image = item.image?.imageUrl || item.thumbnailImages?.[0]?.imageUrl || null;
           for (const u of ebayUsers) {
+            if (!pricePassesLimit(priceDisplay, u.priceMax)) continue;
             const ins = await pool.query(
               `INSERT INTO found_items (user_id, platform, title, price, link, keyword, image)
                VALUES ($1,'ebay',$2,$3,$4,$5,$6) ON CONFLICT (user_id,link) DO NOTHING RETURNING id`,
               [u.id, title, priceDisplay, link, keyword, image]
             );
             if (!ins.rows.length) continue;
-            const caption = `🔵 *[EBAY]* Nuovo Articolo!\n🔎 Keyword: ${keyword}\n\n📛 *${title}*\n💰 *Prezzo:* ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
-            await sendNotificationTo(u.telegram_chat_id, caption, image);
+            if (u.telegram_chat_id) {
+              const caption = `🔵 *[EBAY]* Nuovo Articolo!\n🔎 Keyword: ${escapeTgMd(keyword)}\n\n📛 *${escapeTgMd(title)}*\n💰 *Prezzo:* ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
+              await sendNotificationTo(u.telegram_chat_id, caption, image);
+            }
             console.log(`  📨 [eBay] ${title} → user ${u.id}`);
+          }
+        }
+      }
+
+      // --- SUBITO ---
+      const subitoUsers = kwUsers.filter(u => u.subito_enabled);
+      if (subitoUsers.length > 0) {
+        const items = await searchSubito(keyword);
+        if (!items.length) console.log("  ℹ️ Subito: 0 risultati");
+        for (const item of items) {
+          const link  = item.urls?.default;
+          const title = item.subject || "";
+          if (!link || !title) continue;
+          const titleNorm = normalize(title);
+          if (!titleMatchesAll(titleNorm, filterTerms)) continue;
+          if (excludeTerms.some(t => titleNorm.includes(normalize(t)))) continue;
+          const priceDisplay = item.features?.["/price"]?.values?.[0]?.value || "N/D";
+          const imageBase = item.images?.[0]?.cdnBaseUrl;
+          const image = imageBase ? `${imageBase}?rule=phone_200` : null;
+          for (const u of subitoUsers) {
+            if (!pricePassesLimit(priceDisplay, u.priceMax)) continue;
+            const ins = await pool.query(
+              `INSERT INTO found_items (user_id, platform, title, price, link, keyword, image)
+               VALUES ($1,'subito',$2,$3,$4,$5,$6) ON CONFLICT (user_id,link) DO NOTHING RETURNING id`,
+              [u.id, title, priceDisplay, link, keyword, image]
+            );
+            if (!ins.rows.length) continue;
+            if (u.telegram_chat_id) {
+              const caption = `🟠 *[SUBITO]* Nuovo Articolo!\n🔎 Keyword: ${escapeTgMd(keyword)}\n\n📛 *${escapeTgMd(title)}*\n💰 *Prezzo:* ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
+              await sendNotificationTo(u.telegram_chat_id, caption, image);
+            }
+            console.log(`  📨 [Subito] ${title} → user ${u.id}`);
           }
         }
       }
@@ -573,11 +664,16 @@ app.get("/panel/api/profile", requireAuth, async (req, res) => {
 app.put("/panel/api/profile", requireAuth, async (req, res) => {
   const { firstName, lastName, telegramChatId } = req.body;
   if (!firstName || !lastName) return res.status(400).json({ error: "Nome e cognome obbligatori." });
-  await pool.query(
-    "UPDATE users SET first_name=$1, last_name=$2, telegram_chat_id=$3 WHERE id=$4",
-    [firstName.trim(), lastName.trim(), (telegramChatId || "").trim() || null, req.user.userId]
-  );
-  res.json({ ok: true });
+  try {
+    await pool.query(
+      "UPDATE users SET first_name=$1, last_name=$2, telegram_chat_id=$3 WHERE id=$4",
+      [firstName.trim(), lastName.trim(), (telegramChatId || "").trim() || null, req.user.userId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("❌ /api/profile PUT:", err.message);
+    res.status(500).json({ error: "Errore del server." });
+  }
 });
 
 // ── STATUS API ───────────────────────────────────────────────
@@ -586,7 +682,7 @@ app.get("/panel/api/status", requireAuth, async (req, res) => {
     const [kwRes, todayRes, userRes] = await Promise.all([
       pool.query("SELECT COUNT(*) FROM keywords WHERE user_id = $1", [req.user.userId]),
       pool.query("SELECT COUNT(*) FROM found_items WHERE user_id = $1 AND found_at >= CURRENT_DATE", [req.user.userId]),
-      pool.query("SELECT vinted_enabled, ebay_enabled FROM users WHERE id = $1", [req.user.userId]),
+      pool.query("SELECT vinted_enabled, ebay_enabled, subito_enabled, plan, telegram_chat_id FROM users WHERE id = $1", [req.user.userId]),
     ]);
     const u = userRes.rows[0] || {};
     res.json({
@@ -594,12 +690,14 @@ app.get("/panel/api/status", requireAuth, async (req, res) => {
       lastCheckTime:   botStats.lastCheckTime,
       keywords:        parseInt(kwRes.rows[0].count),
       itemsFoundToday: parseInt(todayRes.rows[0].count),
-      vintedEnabled:   u.vinted_enabled ?? true,
-      ebayEnabled:     u.ebay_enabled   ?? true,
+      vintedEnabled:   u.vinted_enabled  ?? true,
+      ebayEnabled:     u.ebay_enabled    ?? true,
+      subitoEnabled:   u.subito_enabled  ?? true,
       vintedConfigured: !!(VINTED_COOKIE_STRING && VINTED_CSRF_TOKEN),
-      ebayConfigured:  !!EBAY_APP_ID,
-      plan:            req.user.plan,
-      planLimit:       PLAN_LIMITS[req.user.plan] || 5,
+      ebayConfigured:      !!EBAY_APP_ID,
+      telegramConfigured:  !!(u.telegram_chat_id),
+      plan:                u.plan || req.user.plan,
+      planLimit:       PLAN_LIMITS[u.plan || req.user.plan] || 5,
     });
   } catch (err) {
     console.error("❌ /api/status:", err.message);
@@ -609,30 +707,41 @@ app.get("/panel/api/status", requireAuth, async (req, res) => {
 
 // ── KEYWORDS API ─────────────────────────────────────────────
 app.get("/panel/api/keywords", requireAuth, async (req, res) => {
-  const r = await pool.query(`
-    SELECT k.search, COALESCE(COUNT(f.id), 0)::int AS item_count
-    FROM keywords k
-    LEFT JOIN found_items f ON f.keyword = k.search AND f.user_id = k.user_id
-    WHERE k.user_id = $1
-    GROUP BY k.search, k.created_at
-    ORDER BY k.created_at DESC
-  `, [req.user.userId]);
-  res.json({ keywords: r.rows });
+  try {
+    const r = await pool.query(`
+      SELECT k.search, k.price_max, COALESCE(COUNT(f.id), 0)::int AS item_count,
+             MAX(f.found_at) AS last_found_at
+      FROM keywords k
+      LEFT JOIN found_items f ON f.keyword = k.search AND f.user_id = k.user_id
+      WHERE k.user_id = $1
+      GROUP BY k.search, k.price_max, k.created_at
+      ORDER BY k.created_at DESC
+    `, [req.user.userId]);
+    res.json({ keywords: r.rows });
+  } catch (err) {
+    console.error("❌ /api/keywords GET:", err.message);
+    res.status(500).json({ error: "Errore del server." });
+  }
 });
 
 app.post("/panel/api/keywords", requireAuth, async (req, res) => {
-  const { search } = req.body;
+  const { search, price_max } = req.body;
   if (!search) return res.status(400).json({ error: "Campo 'search' obbligatorio." });
-  const limit = PLAN_LIMITS[req.user.plan] || 5;
+  const planRes = await pool.query("SELECT plan FROM users WHERE id = $1", [req.user.userId]);
+  const plan = planRes.rows[0]?.plan || req.user.plan;
+  const limit = PLAN_LIMITS[plan] || 5;
   const kwCount = await pool.query("SELECT COUNT(*) FROM keywords WHERE user_id = $1", [req.user.userId]);
   if (parseInt(kwCount.rows[0].count) >= limit) {
     return res.status(403).json({
-      error: `Limite piano ${req.user.plan}: massimo ${limit} keywords. Fai l'upgrade del piano.`,
+      error: `Limite piano ${plan}: massimo ${limit} keywords. Fai l'upgrade del piano.`,
       limitReached: true,
     });
   }
   try {
-    await pool.query("INSERT INTO keywords (user_id, search) VALUES ($1,$2)", [req.user.userId, search.toLowerCase().trim()]);
+    await pool.query(
+      "INSERT INTO keywords (user_id, search, price_max) VALUES ($1,$2,$3)",
+      [req.user.userId, search.toLowerCase().trim(), price_max || null]
+    );
     res.json({ ok: true });
   } catch (err) {
     if (err.code === "23505") return res.status(409).json({ error: "Keyword già presente." });
@@ -642,9 +751,31 @@ app.post("/panel/api/keywords", requireAuth, async (req, res) => {
 
 app.delete("/panel/api/keywords", requireAuth, async (req, res) => {
   const { search } = req.body;
-  const r = await pool.query("DELETE FROM keywords WHERE user_id = $1 AND search = $2", [req.user.userId, search]);
-  if (r.rowCount > 0) return res.json({ ok: true });
-  res.status(404).json({ error: "Keyword non trovata." });
+  if (!search) return res.status(400).json({ error: "Campo 'search' obbligatorio." });
+  try {
+    const r = await pool.query("DELETE FROM keywords WHERE user_id = $1 AND search = $2", [req.user.userId, search]);
+    if (r.rowCount > 0) return res.json({ ok: true });
+    res.status(404).json({ error: "Keyword non trovata." });
+  } catch (err) {
+    console.error("❌ /api/keywords DELETE:", err.message);
+    res.status(500).json({ error: "Errore del server." });
+  }
+});
+
+app.patch("/panel/api/keywords", requireAuth, async (req, res) => {
+  const { search, price_max } = req.body;
+  if (!search) return res.status(400).json({ error: "Campo 'search' obbligatorio." });
+  try {
+    const r = await pool.query(
+      "UPDATE keywords SET price_max = $1 WHERE user_id = $2 AND search = $3",
+      [price_max !== undefined ? (price_max || null) : null, req.user.userId, search]
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: "Keyword non trovata." });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("❌ /api/keywords PATCH:", err.message);
+    res.status(500).json({ error: "Errore del server." });
+  }
 });
 
 // ── ITEMS API ────────────────────────────────────────────────
@@ -688,8 +819,26 @@ app.get("/panel/api/items", requireAuth, async (req, res) => {
 });
 
 app.delete("/panel/api/items", requireAuth, async (req, res) => {
-  await pool.query("DELETE FROM found_items WHERE user_id = $1", [req.user.userId]);
-  res.json({ ok: true });
+  try {
+    await pool.query("DELETE FROM found_items WHERE user_id = $1", [req.user.userId]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("❌ /api/items DELETE:", err.message);
+    res.status(500).json({ error: "Errore del server." });
+  }
+});
+
+app.delete("/panel/api/items/one", requireAuth, async (req, res) => {
+  const { link } = req.body;
+  if (!link) return res.status(400).json({ error: "Campo 'link' obbligatorio." });
+  try {
+    const r = await pool.query("DELETE FROM found_items WHERE user_id = $1 AND link = $2", [req.user.userId, link]);
+    if (r.rowCount > 0) return res.json({ ok: true });
+    res.status(404).json({ error: "Articolo non trovato." });
+  } catch (err) {
+    console.error("❌ /api/items/one DELETE:", err.message);
+    res.status(500).json({ error: "Errore del server." });
+  }
 });
 
 app.get("/panel/api/stats/daily", requireAuth, async (req, res) => {
@@ -711,13 +860,19 @@ app.get("/panel/api/stats/daily", requireAuth, async (req, res) => {
 // ── PLATFORM TOGGLE ──────────────────────────────────────────
 app.post("/panel/api/toggle/:platform", requireAuth, async (req, res) => {
   const p = req.params.platform;
-  if (p !== "vinted" && p !== "ebay") return res.status(400).json({ error: "Platform non valida." });
-  const col = p === "vinted" ? "vinted_enabled" : "ebay_enabled";
-  const r = await pool.query(
-    `UPDATE users SET ${col} = NOT ${col} WHERE id = $1 RETURNING ${col} AS enabled`,
-    [req.user.userId]
-  );
-  res.json({ enabled: r.rows[0].enabled });
+  if (p !== "vinted" && p !== "ebay" && p !== "subito") return res.status(400).json({ error: "Platform non valida." });
+  const col = p === "vinted" ? "vinted_enabled" : p === "ebay" ? "ebay_enabled" : "subito_enabled";
+  try {
+    const r = await pool.query(
+      `UPDATE users SET ${col} = NOT ${col} WHERE id = $1 RETURNING ${col} AS enabled`,
+      [req.user.userId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: "Utente non trovato." });
+    res.json({ enabled: r.rows[0].enabled });
+  } catch (err) {
+    console.error(`❌ /api/toggle/${p}:`, err.message);
+    res.status(500).json({ error: "Errore del server." });
+  }
 });
 
 // ── STRIPE ───────────────────────────────────────────────────
@@ -815,8 +970,16 @@ app.post("/panel/api/stripe/portal", requireAuth, async (req, res) => {
 });
 
 // ── RUN NOW ──────────────────────────────────────────────────
+const runCooldowns = new Map(); // userId → lastRunTimestamp
+const RUN_COOLDOWN_MS = 2 * 60 * 1000;
+
 app.post("/panel/api/run", requireAuth, (req, res) => {
+  const userId = req.user.userId;
+  const lastRun = runCooldowns.get(userId) || 0;
+  const cooldownLeft = Math.ceil((RUN_COOLDOWN_MS - (Date.now() - lastRun)) / 1000);
+  if (cooldownLeft > 0) return res.json({ ok: false, message: `Attendi ancora ${cooldownLeft}s prima di riavviare.` });
   if (isRunning) return res.json({ ok: false, message: "Già in esecuzione." });
+  runCooldowns.set(userId, Date.now());
   checkAll();
   res.json({ ok: true, message: "Controllo avviato." });
 });
@@ -845,7 +1008,10 @@ app.listen(PORT, () => console.log(`🚀 Server su porta ${PORT}`));
 // TELEGRAM COMMANDS
 // ============================================================
 async function getLinkedUser(chatId) {
-  const r = await pool.query("SELECT * FROM users WHERE telegram_chat_id = $1", [chatId.toString()]);
+  const r = await pool.query(
+    "SELECT id, plan, vinted_enabled, ebay_enabled, subito_enabled FROM users WHERE telegram_chat_id = $1",
+    [chatId.toString()]
+  );
   return r.rows[0] || null;
 }
 
@@ -907,7 +1073,7 @@ bot.onText(/\/status/, async msg => {
   ]);
   const lastCheck = botStats.lastCheckTime ? new Date(botStats.lastCheckTime).toLocaleString("it-IT") : "Mai";
   bot.sendMessage(chatId,
-    `📊 *Stato Bot*\n\nVinted: ${user.vinted_enabled ? "✅ Attivo" : "⏸ Pausato"}\neBay: ${user.ebay_enabled ? "✅ Attivo" : "⏸ Pausato"}\nUltimo controllo: ${lastCheck}\nTrovati oggi: ${todayRes.rows[0].count}\nKeyword: ${kwRes.rows[0].count}\nPiano: ${user.plan}`,
+    `📊 *Stato Bot*\n\nVinted: ${user.vinted_enabled ? "✅ Attivo" : "⏸ Pausato"}\neBay: ${user.ebay_enabled ? "✅ Attivo" : "⏸ Pausato"}\nSubito: ${user.subito_enabled ? "✅ Attivo" : "⏸ Pausato"}\nUltimo controllo: ${lastCheck}\nTrovati oggi: ${todayRes.rows[0].count}\nKeyword: ${kwRes.rows[0].count}\nPiano: ${user.plan}`,
     { parse_mode: "Markdown" }
   );
 });

@@ -49,6 +49,8 @@ async function initDB() {
     await client.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id     VARCHAR(100) UNIQUE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(100);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS subito_enabled         BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE keywords ADD COLUMN IF NOT EXISTS price_max NUMERIC DEFAULT NULL;
     `);
     console.log("✅ Database schema inizializzato.");
   } finally {
