@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node --max-old-space-size=256 index.js",
     "preview": "node preview.js",
-    "build": "npm install"
+    "build": "npm install --no-audit"
   },
   "dependencies": {
     "@sparticuz/chromium": "^131.0.0",
@@ -29,5 +29,9 @@
   },
   "engines": {
     "node": "22.x"
+  },
+  "overrides": {
+    "form-data": "^4.0.4",
+    "tough-cookie": "^4.1.4"
   }
 }

@@ -260,8 +260,8 @@ th.sorted-desc::after{content:' ↓';color:var(--cyan)}
 .strip-title::before{content:'';display:inline-block;width:3px;height:12px;background:linear-gradient(180deg,var(--cyan),var(--purple));border-radius:2px;box-shadow:0 0 6px rgba(0,212,255,.5)}
 .strip-link{font-size:.72rem;color:var(--text-dimmer);text-decoration:none;transition:color .15s}
 .strip-link:hover{color:var(--cyan)}
-.recent-scroll{display:flex;gap:.75rem;overflow-x:auto;padding-bottom:.4rem;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.recent-scroll::-webkit-scrollbar{display:none}
+.recent-scroll{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:.75rem}
+@media(max-width:640px){.recent-scroll{display:flex;gap:.75rem;overflow-x:auto;padding-bottom:.4rem;-webkit-overflow-scrolling:touch;scrollbar-width:none}.recent-scroll::-webkit-scrollbar{display:none}}
 .recent-card{flex:0 0 155px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:14px;overflow:hidden;text-decoration:none;transition:border-color .2s,transform .2s,box-shadow .2s;display:block}
 .recent-card:hover{border-color:rgba(34,211,238,.3);transform:translateY(-4px);box-shadow:0 12px 32px rgba(0,0,0,.45),0 0 24px rgba(34,211,238,.07)}
 .recent-card-img{width:100%;height:95px;object-fit:cover;display:block}
@@ -1173,7 +1173,7 @@ function renderItems(items, total, totalPages) {
 
 // ── RECENT STRIP ──────────────────────────────────────────────
 async function fetchRecentItems() {
-  const d = await api('GET', '/panel/api/items?page=1&limit=8&sort=date&dir=desc');
+  const d = await api('GET', '/panel/api/items?page=1&limit=20&sort=date&dir=desc');
   if (!d || !d.items.length) return;
   document.getElementById('recentStrip').style.display = '';
   const nowMs = Date.now();
@@ -1463,6 +1463,7 @@ async function exportCSV() {
 function updateNextCheckCountdown() {
   const el = document.getElementById('nextCheckVal');
   if (!el) return;
+  if (_fastPolling) { el.textContent = '⏳ Scansione in corso...'; return; }
   if (!_lastCheckTimeMs) { el.textContent = ''; return; }
   const nextMs  = _lastCheckTimeMs + 15 * 60 * 1000;
   const diffMs  = nextMs - Date.now();

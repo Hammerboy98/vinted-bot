@@ -101,7 +101,7 @@ const EXCLUDE_TERMS = [
   "booster", "bustina", "display box",
   "raccoglitore", "binder",
   "gadget", "puzzle",
-  "fan art", "fanart", "fun art", "repro", "custom", "replica", "fake", "bootleg", "proxy",
+  "fan art", "fanart", "fun art", "repro", "riproduzione", "replica", "fake", "bootleg", "proxy",
   "golden goose", "backpack", "ledertasche", "tasche", "star wars",
   "superstar", "jacket", "giacca", "giubbotto", "pantalone", "vestito",
   "scarpa da ginnastica", "taglia", " tg ", " tg.", "size ",
