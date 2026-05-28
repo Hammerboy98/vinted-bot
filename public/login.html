@@ -160,6 +160,16 @@ body::after{
   transition:opacity .15s;
 }
 .footer-link a:hover{opacity:.8}
+.info-bar{
+  display:none;align-items:center;gap:.6rem;
+  padding:.65rem .9rem;border-radius:10px;
+  margin-bottom:1rem;font-size:.82rem;font-weight:500;
+}
+.info-bar.ok{background:rgba(0,230,118,.07);border:1px solid rgba(0,230,118,.3);color:#00e676}
+.info-bar.warn{background:rgba(250,204,21,.07);border:1px solid rgba(250,204,21,.3);color:#facc15}
+.info-bar.show{display:flex}
+.resend-btn{background:none;border:none;color:var(--cyan);font-size:.82rem;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
+.resend-btn:disabled{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -170,6 +180,14 @@ body::after{
     <p>Sistema di controllo v3.0</p>
   </div>
 
+  <div class="info-bar ok" id="infoOk">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+    <span id="infoOkMsg"></span>
+  </div>
+  <div class="info-bar warn" id="infoWarn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+    <span id="infoWarnMsg"></span>
+  </div>
   <div class="error" id="err">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
     <span id="errMsg"></span>
@@ -199,15 +217,33 @@ body::after{
   </div>
 </div>
 <script>
+// Handle query-string notifications
+(function(){
+  const p=new URLSearchParams(location.search);
+  if(p.get('verified')==='1'){
+    document.getElementById('infoOkMsg').textContent='Email verificata! Ora puoi accedere.';
+    document.getElementById('infoOk').classList.add('show');
+    history.replaceState(null,'','/panel/login');
+  }
+  if(p.get('verifyError')==='1'){
+    document.getElementById('infoWarnMsg').textContent='Link non valido o scaduto. Registrati di nuovo o richiedi una nuova email.';
+    document.getElementById('infoWarn').classList.add('show');
+    history.replaceState(null,'','/panel/login');
+  }
+})();
+
+let _lastUnverifiedEmail='';
+
 function togglePw(){
   const input=document.getElementById('pw');
   const btn=document.querySelector('.pw-toggle');
   if(input.type==='password'){input.type='text';btn.textContent='🙈';}
   else{input.type='password';btn.textContent='👁';}
 }
-function showError(msg){
+function showError(msg,html){
   const err=document.getElementById('err');
-  document.getElementById('errMsg').textContent=msg;
+  if(html)document.getElementById('errMsg').innerHTML=html;
+  else document.getElementById('errMsg').textContent=msg;
   err.classList.remove('shake');
   err.classList.add('show');
   void err.offsetWidth;
@@ -233,6 +269,11 @@ async function doLogin(){
       localStorage.setItem('panel_user',JSON.stringify(data.user));
       btn.textContent='✓ Accesso autorizzato';
       location.href='/panel/';
+    }else if(data.notVerified){
+      _lastUnverifiedEmail=data.email||email;
+      showError('',`Email non verificata. <button class="resend-btn" id="resendBtn" onclick="resendVerification()">Rinvia email di verifica</button>`);
+      btn.disabled=false;
+      btn.textContent='Accedi al sistema';
     }else{
       showError(data.error||'Credenziali non valide.');
       btn.disabled=false;
@@ -242,6 +283,22 @@ async function doLogin(){
     showError('Errore di connessione. Riprova.');
     btn.disabled=false;
     btn.textContent='Accedi al sistema';
+  }
+}
+async function resendVerification(){
+  const btn=document.getElementById('resendBtn');
+  if(!btn)return;
+  btn.disabled=true;btn.textContent='Invio…';
+  try{
+    await fetch('/panel/api/auth/resend-verification',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:_lastUnverifiedEmail})
+    });
+    document.getElementById('err').classList.remove('show','shake');
+    document.getElementById('infoOkMsg').textContent='Email di verifica inviata! Controlla la tua casella.';
+    document.getElementById('infoOk').classList.add('show');
+  }catch{
+    btn.disabled=false;btn.textContent='Rinvia email di verifica';
   }
 }
 document.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
