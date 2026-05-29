@@ -76,7 +76,7 @@ async function initDB() {
                    ORDER BY found_at DESC
                  ) AS rn
           FROM found_items
-          WHERE platform IN ('ebay','subito') AND link LIKE '%?%'
+          WHERE platform IN ('ebay','subito')
         ) t WHERE rn > 1
       )
     `);
