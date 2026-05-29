@@ -154,6 +154,7 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
 const randomDelay = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
 const normalize = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 const escapeTgMd = text => String(text).replace(/[_*`[]/g, "\\$&");
+const escHtml    = text => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 function pricePassesLimit(priceDisplay, priceMin, priceMax) {
   const n = parseFloat(String(priceDisplay).replace(",", ".").match(/[\d.]+/)?.[0]);
@@ -187,12 +188,12 @@ function withTimeout(promise, ms) {
 async function sendNotificationTo(chatId, caption, photoUrl) {
   if (photoUrl) {
     try {
-      await withTimeout(bot.sendPhoto(chatId, photoUrl, { caption, parse_mode: "Markdown" }), 15000);
+      await withTimeout(bot.sendPhoto(chatId, photoUrl, { caption, parse_mode: "HTML" }), 15000);
       return;
     } catch {}
   }
   try {
-    await withTimeout(bot.sendMessage(chatId, caption, { parse_mode: "Markdown" }), 15000);
+    await withTimeout(bot.sendMessage(chatId, caption, { parse_mode: "HTML" }), 15000);
   } catch (err) {
     console.error(`❌ sendNotification → chat ${chatId}:`, err.message);
   }
@@ -411,8 +412,15 @@ async function searchSubito(keyword) {
         nd?.props?.pageProps?.items ||
         [];
       if (!list.length) {
-        const keys = Object.keys(nd?.props?.pageProps || {}).join(", ");
-        console.warn(`⚠️ Subito: 0 risultati per "${keyword}". Chiavi pageProps: [${keys}]`);
+        const pp = nd?.props?.pageProps || {};
+        const is = pp?.initialState || {};
+        const isItems = is?.items || {};
+        console.warn(
+          `⚠️ Subito: 0 risultati per "${keyword}".` +
+          `\n  pageProps keys: [${Object.keys(pp).join(", ")}]` +
+          `\n  initialState keys: [${Object.keys(is).join(", ")}]` +
+          `\n  initialState.items keys: [${Object.keys(isItems).join(", ")}]`
+        );
       }
       return list;
     } catch (err) {
@@ -500,7 +508,7 @@ async function checkAll() {
             );
             if (!ins.rows.length) continue;
             if (u.telegram_chat_id) {
-              const caption = `🟣 *[VINTED]* Nuovo Articolo!\n🔎 Keyword: ${escapeTgMd(keyword)}\n\n📛 *${escapeTgMd(item.title)}*\n💰 *Prezzo:* ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
+              const caption = `🟣 <b>[VINTED]</b> Nuovo Articolo!\n🔎 Keyword: ${escHtml(keyword)}\n\n📛 <b>${escHtml(item.title)}</b>\n💰 <b>Prezzo:</b> ${escHtml(priceDisplay)}\n\n🔗 <a href="${escHtml(link)}">Vedi Articolo</a>`;
               await sendNotificationTo(u.telegram_chat_id, caption, item.photo?.url);
             }
             console.log(`  📨 [Vinted] ${item.title} → user ${u.id}`);
@@ -532,7 +540,7 @@ async function checkAll() {
             );
             if (!ins.rows.length) continue;
             if (u.telegram_chat_id) {
-              const caption = `🔵 *[EBAY]* Nuovo Articolo!\n🔎 Keyword: ${escapeTgMd(keyword)}\n\n📛 *${escapeTgMd(title)}*\n💰 *Prezzo:* ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
+              const caption = `🔵 <b>[EBAY]</b> Nuovo Articolo!\n🔎 Keyword: ${escHtml(keyword)}\n\n📛 <b>${escHtml(title)}</b>\n💰 <b>Prezzo:</b> ${escHtml(priceDisplay)}\n\n🔗 <a href="${escHtml(link)}">Vedi Articolo</a>`;
               await sendNotificationTo(u.telegram_chat_id, caption, image);
             }
             console.log(`  📨 [eBay] ${title} → user ${u.id}`);
@@ -546,7 +554,8 @@ async function checkAll() {
         const items = await searchSubito(keyword);
         if (!items.length) console.log("  ℹ️ Subito: 0 risultati");
         for (const item of items) {
-          const link  = item.urls?.default || item.url || null;
+          const rawLink = item.urls?.default || item.url || null;
+          const link  = rawLink ? rawLink.split("?")[0] : null;
           const title = item.subject || item.title || "";
           if (!link || !title) continue;
           const titleNorm = normalize(title);
@@ -568,7 +577,7 @@ async function checkAll() {
             );
             if (!ins.rows.length) continue;
             if (u.telegram_chat_id) {
-              const caption = `🟠 *[SUBITO]* Nuovo Articolo!\n🔎 Keyword: ${escapeTgMd(keyword)}\n\n📛 *${escapeTgMd(title)}*\n💰 *Prezzo:* ${priceDisplay}\n\n🔗 [Vedi Articolo](${link})`;
+              const caption = `🟠 <b>[SUBITO]</b> Nuovo Articolo!\n🔎 Keyword: ${escHtml(keyword)}\n\n📛 <b>${escHtml(title)}</b>\n💰 <b>Prezzo:</b> ${escHtml(priceDisplay)}\n\n🔗 <a href="${escHtml(link)}">Vedi Articolo</a>`;
               await sendNotificationTo(u.telegram_chat_id, caption, image);
             }
             console.log(`  📨 [Subito] ${title} → user ${u.id}`);

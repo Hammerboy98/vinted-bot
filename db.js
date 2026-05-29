@@ -56,8 +56,36 @@ async function initDB() {
       ALTER TABLE keywords ADD COLUMN IF NOT EXISTS price_min           NUMERIC DEFAULT NULL;
       ALTER TABLE keywords ADD COLUMN IF NOT EXISTS active              BOOLEAN NOT NULL DEFAULT TRUE;
     `);
-    // Rimuovi duplicati e garantisci il vincolo unique su found_items(user_id, link)
-    // (necessario se la tabella era stata creata senza il vincolo in precedenza)
+    // One-time: elimina articoli eBay trovati prima delle 08:00 del 29-05-2026
+    // (flood causato dal cambio normalizzazione URL — i duplicati post-8h rimangono come "visti")
+    await client.query(`
+      DELETE FROM found_items
+      WHERE platform = 'ebay'
+        AND found_at < TIMESTAMPTZ '2026-05-29 08:00:00+02'
+    `);
+
+    // Normalizza i link eBay e Subito già in DB togliendo i query param
+    // (il codice ora salva solo l'URL base; i vecchi record col ?param causavano re-notifiche)
+    await client.query(`
+      DELETE FROM found_items
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT id,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY user_id, SPLIT_PART(link, '?', 1)
+                   ORDER BY found_at DESC
+                 ) AS rn
+          FROM found_items
+          WHERE platform IN ('ebay','subito') AND link LIKE '%?%'
+        ) t WHERE rn > 1
+      )
+    `);
+    await client.query(`
+      UPDATE found_items
+      SET link = SPLIT_PART(link, '?', 1)
+      WHERE platform IN ('ebay','subito') AND link LIKE '%?%'
+    `);
+    // Rimuovi eventuali duplicati rimasti e garantisci il vincolo unique
     await client.query(`
       WITH dups AS (
         SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id, link ORDER BY found_at DESC) AS rn
