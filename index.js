@@ -404,7 +404,17 @@ async function searchSubito(keyword) {
       const m = res.data.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
       if (!m) { console.warn(`⚠️ Subito: __NEXT_DATA__ non trovato per "${keyword}"`); return []; }
       const nd = JSON.parse(m[1]);
-      return nd?.props?.pageProps?.initialState?.items?.originalList || [];
+      const list =
+        nd?.props?.pageProps?.initialState?.items?.originalList ||
+        nd?.props?.pageProps?.initialState?.items?.list ||
+        nd?.props?.pageProps?.ads ||
+        nd?.props?.pageProps?.items ||
+        [];
+      if (!list.length) {
+        const keys = Object.keys(nd?.props?.pageProps || {}).join(", ");
+        console.warn(`⚠️ Subito: 0 risultati per "${keyword}". Chiavi pageProps: [${keys}]`);
+      }
+      return list;
     } catch (err) {
       const status = err.response?.status;
       if (status === 429) {
@@ -504,7 +514,8 @@ async function checkAll() {
         const items = await searchEbay(keyword);
         if (!items.length) console.log("  ℹ️ eBay: 0 risultati");
         for (const item of items) {
-          const link  = item.itemWebUrl;
+          // Normalizza l'URL eBay togliendo i parametri di tracking che cambiano ogni ciclo
+          const link  = item.itemWebUrl ? item.itemWebUrl.split("?")[0] : null;
           const title = item.title || "";
           if (!link) continue;
           const titleNorm = normalize(title);
@@ -535,15 +546,19 @@ async function checkAll() {
         const items = await searchSubito(keyword);
         if (!items.length) console.log("  ℹ️ Subito: 0 risultati");
         for (const item of items) {
-          const link  = item.urls?.default;
-          const title = item.subject || "";
+          const link  = item.urls?.default || item.url || null;
+          const title = item.subject || item.title || "";
           if (!link || !title) continue;
           const titleNorm = normalize(title);
           if (!titleMatchesAll(titleNorm, filterTerms)) continue;
           if (excludeTerms.some(t => titleNorm.includes(normalize(t)))) continue;
-          const priceDisplay = item.features?.["/price"]?.values?.[0]?.value || "N/D";
-          const imageBase = item.images?.[0]?.cdnBaseUrl;
-          const image = imageBase ? `${imageBase}?rule=phone_200` : null;
+          const priceDisplay = item.features?.["/price"]?.values?.[0]?.value
+            || item.price
+            || "N/D";
+          const imageBase = item.images?.[0]?.cdnBaseUrl || item.images?.[0]?.scale?.[0]?.url;
+          const image = imageBase
+            ? (imageBase.startsWith("http") ? imageBase + (imageBase.includes("?") ? "" : "?rule=phone_200") : null)
+            : null;
           for (const u of subitoUsers) {
             if (!pricePassesLimit(priceDisplay, u.priceMin, u.priceMax)) continue;
             const ins = await pool.query(
@@ -1063,6 +1078,33 @@ app.post("/panel/api/stripe/portal", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("❌ Stripe portal:", err.message);
     res.status(500).json({ error: "Errore apertura portal." });
+  }
+});
+
+// ── IMAGE PROXY (Vinted CDN hotlink protection) ───────────────
+app.get("/panel/api/img-proxy", async (req, res) => {
+  const url = req.query.url;
+  // Accetta solo URL HTTPS di CDN noti (Vinted + Subito) per prevenire SSRF
+  if (!url || !/^https:\/\/[a-z0-9_.-]+\.(vinted\.(net|com)|subito\.it)(\/|$)/i.test(url)) {
+    return res.status(400).end();
+  }
+  const isSubito = url.includes("subito.it");
+  try {
+    const imgRes = await axios.get(url, {
+      responseType: "arraybuffer",
+      headers: {
+        "User-Agent": getRandomUA(),
+        "Referer": isSubito ? "https://www.subito.it/" : "https://www.vinted.it/",
+        "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+        ...(isSubito ? {} : (VINTED_COOKIE_STRING ? { Cookie: VINTED_COOKIE_STRING } : {})),
+      },
+      timeout: 10000,
+    });
+    res.set("Content-Type", imgRes.headers["content-type"] || "image/jpeg");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(Buffer.from(imgRes.data));
+  } catch {
+    res.status(404).end();
   }
 });
 

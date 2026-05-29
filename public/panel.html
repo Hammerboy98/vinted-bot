@@ -3189,6 +3189,13 @@
         fetchItems();
       }
 
+      function getImgSrc(it) {
+        if (!it.image) return null;
+        if (it.platform === "subito")
+          return "/panel/api/img-proxy?url=" + encodeURIComponent(it.image);
+        return it.image;
+      }
+
       function relTime(iso) {
         const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
         if (diff < 60) return "adesso";
@@ -3253,10 +3260,11 @@
                   : it.platform === "subito"
                     ? "🟠 Subito"
                     : "🔵 eBay";
-              const img = it.image
+              const _imgSrc = getImgSrc(it);
+              const img = _imgSrc
                 ? '<img class="item-card-img" src="' +
-                  it.image.replace(/"/g, "&quot;") +
-                  '" loading="lazy" alt="" referrerpolicy="no-referrer" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' +
+                  _imgSrc.replace(/"/g, "&quot;") +
+                  '" loading="lazy" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' +
                   '<div class="item-card-ph" style="display:none">📦</div>'
                 : '<div class="item-card-ph">📦</div>';
               const linkEsc = it.link.replace(/"/g, "&quot;");
@@ -3318,10 +3326,11 @@
                   : it.platform === "subito"
                     ? '<span class="badge badge-subito">🟠 Subito</span>'
                     : '<span class="badge badge-ebay">🔵 eBay</span>';
-              const img = it.image
+              const _imgSrc2 = getImgSrc(it);
+              const img = _imgSrc2
                 ? '<img class="item-img" src="' +
-                  it.image.replace(/"/g, "&quot;") +
-                  '" loading="lazy" alt="" referrerpolicy="no-referrer" onerror="this.style.display=\'none\'">'
+                  _imgSrc2.replace(/"/g, "&quot;") +
+                  '" loading="lazy" alt="" onerror="this.style.display=\'none\'">'
                 : '<div class="item-img-ph">📦</div>';
               const linkEsc = it.link.replace(/"/g, "&quot;");
               const titleEsc = it.title
@@ -3391,10 +3400,11 @@
           .map((it) => {
             const isNew =
               nowMs - new Date(it.foundAt).getTime() < 2 * 3600 * 1000;
-            const img = it.image
+            const _imgSrc3 = getImgSrc(it);
+            const img = _imgSrc3
               ? '<img class="recent-card-img" src="' +
-                it.image.replace(/"/g, "&quot;") +
-                '" loading="lazy" alt="" referrerpolicy="no-referrer" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' +
+                _imgSrc3.replace(/"/g, "&quot;") +
+                '" loading="lazy" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' +
                 '<div class="recent-card-ph" style="display:none">📦</div>'
               : '<div class="recent-card-ph">📦</div>';
             const titleEsc = it.title

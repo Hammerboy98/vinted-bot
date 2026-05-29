@@ -56,6 +56,22 @@ async function initDB() {
       ALTER TABLE keywords ADD COLUMN IF NOT EXISTS price_min           NUMERIC DEFAULT NULL;
       ALTER TABLE keywords ADD COLUMN IF NOT EXISTS active              BOOLEAN NOT NULL DEFAULT TRUE;
     `);
+    // Rimuovi duplicati e garantisci il vincolo unique su found_items(user_id, link)
+    // (necessario se la tabella era stata creata senza il vincolo in precedenza)
+    await client.query(`
+      WITH dups AS (
+        SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id, link ORDER BY found_at DESC) AS rn
+        FROM found_items
+      )
+      DELETE FROM found_items WHERE id IN (SELECT id FROM dups WHERE rn > 1)
+    `);
+    try {
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_found_items_uniq_link ON found_items(user_id, link)
+      `);
+    } catch (err) {
+      console.warn("⚠️ idx_found_items_uniq_link:", err.message);
+    }
     console.log("✅ Database schema inizializzato.");
   } finally {
     client.release();
