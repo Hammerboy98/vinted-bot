@@ -2583,6 +2583,37 @@
       </div>
     </div>
 
+    <!-- MODAL EXPORT CSV -->
+    <div
+      class="modal-overlay"
+      id="csvExportOverlay"
+      onclick="maybeCloseCsvExport(event)"
+    >
+      <div class="modal" style="max-width: 420px">
+        <h2>⬇ Esporta CSV</h2>
+        <p>Scegli i filtri da applicare all'esportazione.</p>
+        <div class="field" style="margin-bottom: 0.85rem">
+          <label for="csvKwSelect">Keyword</label>
+          <select id="csvKwSelect" style="width:100%;padding:.62rem .85rem;background:rgba(4,8,20,.7);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:var(--text);font-size:.9rem;transition:border-color .15s,box-shadow .15s">
+            <option value="">— Tutte le keyword —</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom: 1.2rem">
+          <label for="csvPlatSelect">Piattaforma</label>
+          <select id="csvPlatSelect" style="width:100%;padding:.62rem .85rem;background:rgba(4,8,20,.7);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:var(--text);font-size:.9rem;transition:border-color .15s,box-shadow .15s">
+            <option value="">— Tutte le piattaforme —</option>
+            <option value="vinted">🟣 Vinted</option>
+            <option value="ebay">🔵 eBay</option>
+            <option value="subito">🟠 Subito</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeCsvExport()">Annulla</button>
+          <button class="btn btn-green" id="csvDoExportBtn" onclick="doExportCSV()">⬇ Scarica CSV</button>
+        </div>
+      </div>
+    </div>
+
     <div class="toast" id="toast"></div>
 
     <script>
@@ -3821,20 +3852,48 @@
         }
       }
 
-      async function exportCSV() {
-        const btn = document.getElementById("exportCsvBtn");
+      function exportCSV() {
+        // Popola le keyword nel select
+        const sel = document.getElementById("csvKwSelect");
+        sel.innerHTML = '<option value="">— Tutte le keyword —</option>';
+        (allKeywords || []).forEach((k) => {
+          const opt = document.createElement("option");
+          opt.value = k.search;
+          opt.textContent = k.search;
+          sel.appendChild(opt);
+        });
+        document.getElementById("csvPlatSelect").value = "";
+        document.getElementById("csvExportOverlay").classList.add("open");
+      }
+
+      function closeCsvExport() {
+        document.getElementById("csvExportOverlay").classList.remove("open");
+      }
+
+      function maybeCloseCsvExport(e) {
+        if (e.target === document.getElementById("csvExportOverlay")) closeCsvExport();
+      }
+
+      async function doExportCSV() {
+        const kw   = document.getElementById("csvKwSelect").value;
+        const plat = document.getElementById("csvPlatSelect").value;
+        const btn  = document.getElementById("csvDoExportBtn");
         btn.disabled = true;
         btn.textContent = "⏳ Export…";
-        const d = await api(
-          "GET",
-          "/panel/api/items?page=1&limit=9999&sort=date&dir=desc",
-        );
+
+        let url = "/panel/api/items?page=1&limit=9999&sort=date&dir=desc";
+        if (kw)   url += "&kw="       + encodeURIComponent(kw);
+        if (plat) url += "&platform=" + encodeURIComponent(plat);
+
+        const d = await api("GET", url);
         btn.disabled = false;
-        btn.textContent = "⬇ CSV";
+        btn.textContent = "⬇ Scarica CSV";
+
         if (!d || !d.items || !d.items.length) {
-          showToast("Nessun articolo da esportare.", true);
+          showToast("Nessun articolo con questi filtri.", true);
           return;
         }
+
         const rows = [
           ["Titolo", "Piattaforma", "Prezzo", "Keyword", "Link", "Trovato"],
         ];
@@ -3848,16 +3907,21 @@
             new Date(it.foundAt).toLocaleString("it-IT"),
           ]);
         }
-        const csv = rows.map((r) => r.join(",")).join("\n");
+
+        const csv  = rows.map((r) => r.join(",")).join("\n");
         const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
+        const objUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url;
-        a.download = "pokebot-articoli.csv";
+        a.href = objUrl;
+        const kwPart   = kw   ? "-" + kw.replace(/[^a-z0-9]/gi, "_")   : "";
+        const platPart = plat ? "-" + plat : "";
+        a.download = "pokebot" + kwPart + platPart + ".csv";
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(objUrl);
+
+        closeCsvExport();
         showToast("CSV esportato (" + d.items.length + " articoli)!");
       }
 
