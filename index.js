@@ -582,9 +582,16 @@ async function checkAll() {
             || item.price
             || "N/D";
           const imageBase = item.images?.[0]?.cdnBaseUrl || item.images?.[0]?.scale?.[0]?.url;
-          const image = imageBase
-            ? (imageBase.startsWith("http") ? imageBase + (imageBase.includes("?") ? "" : "?rule=phone_200") : null)
-            : null;
+          // Normalizza URL protocol-relative (//...) e aggiungi rule=phone_200 se serve
+          let image = null;
+          if (imageBase) {
+            const absBase = imageBase.startsWith("//") ? "https:" + imageBase : imageBase;
+            if (absBase.startsWith("http")) {
+              image = absBase.includes("?") ? absBase : absBase + "?rule=phone_200";
+            } else {
+              console.log(`  🖼️ Subito img URL inatteso: ${imageBase.slice(0, 80)}`);
+            }
+          }
           for (const u of subitoUsers) {
             if (!pricePassesLimit(priceDisplay, u.priceMin, u.priceMax)) continue;
             const ins = await pool.query(
@@ -1110,11 +1117,20 @@ app.post("/panel/api/stripe/portal", requireAuth, async (req, res) => {
 // ── IMAGE PROXY (Vinted CDN hotlink protection) ───────────────
 app.get("/panel/api/img-proxy", async (req, res) => {
   const url = req.query.url;
-  // Accetta solo URL HTTPS di CDN noti (Vinted + Subito) per prevenire SSRF
-  if (!url || !/^https:\/\/[a-z0-9_.-]+\.(vinted\.(net|com)|subito\.it)(\/|$)/i.test(url)) {
+  let parsed;
+  try { parsed = new URL(url || ""); } catch { return res.status(400).end(); }
+
+  // Solo HTTPS — blocca IP privati per prevenire SSRF
+  if (parsed.protocol !== "https:") return res.status(400).end();
+  const host = parsed.hostname.toLowerCase();
+  if (/^(localhost$|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(host))
     return res.status(400).end();
-  }
-  const isSubito = url.includes("subito.it");
+
+  // Whitelist flessibile: qualsiasi subdomain di vinted o subito
+  const isVinted = host.includes("vinted");
+  const isSubito = host.includes("subito");
+  if (!isVinted && !isSubito) return res.status(400).end();
+
   try {
     const imgRes = await axios.get(url, {
       responseType: "arraybuffer",
@@ -1129,7 +1145,8 @@ app.get("/panel/api/img-proxy", async (req, res) => {
     res.set("Content-Type", imgRes.headers["content-type"] || "image/jpeg");
     res.set("Cache-Control", "public, max-age=86400");
     res.send(Buffer.from(imgRes.data));
-  } catch {
+  } catch (err) {
+    console.log(`  🖼️ img-proxy errore (${host}): ${err.message}`);
     res.status(404).end();
   }
 });
