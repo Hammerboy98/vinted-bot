@@ -405,20 +405,30 @@ async function searchSubito(keyword) {
       const m = res.data.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
       if (!m) { console.warn(`⚠️ Subito: __NEXT_DATA__ non trovato per "${keyword}"`); return []; }
       const nd = JSON.parse(m[1]);
+      const is = nd?.props?.pageProps?.initialState || {};
       const list =
-        nd?.props?.pageProps?.initialState?.items?.originalList ||
-        nd?.props?.pageProps?.initialState?.items?.list ||
+        is?.items?.originalList ||
+        is?.items?.list ||
+        is?.items?.ads ||
+        is?.listing?.originalList ||
+        is?.listing?.list ||
+        is?.listing?.ads ||
+        is?.ads?.originalList ||
+        is?.ads?.list ||
+        (Array.isArray(is?.ads) ? is.ads : null) ||
+        is?.results?.originalList ||
+        is?.results?.list ||
+        (Array.isArray(is?.results) ? is.results : null) ||
         nd?.props?.pageProps?.ads ||
         nd?.props?.pageProps?.items ||
         [];
       if (!list.length) {
         const pp = nd?.props?.pageProps || {};
-        const is = pp?.initialState || {};
         const isItems = is?.items || {};
         console.warn(
           `⚠️ Subito: 0 risultati per "${keyword}".` +
-          `\n  pageProps keys: [${Object.keys(pp).join(", ")}]` +
-          `\n  initialState keys: [${Object.keys(is).join(", ")}]` +
+          `\n  pageProps keys:        [${Object.keys(pp).join(", ")}]` +
+          `\n  initialState keys:     [${Object.keys(is).join(", ")}]` +
           `\n  initialState.items keys: [${Object.keys(isItems).join(", ")}]`
         );
       }
