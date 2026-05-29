@@ -423,14 +423,21 @@ async function searchSubito(keyword) {
         nd?.props?.pageProps?.items ||
         [];
       if (!list.length) {
-        const pp = nd?.props?.pageProps || {};
-        const isItems = is?.items || {};
-        console.warn(
-          `⚠️ Subito: 0 risultati per "${keyword}".` +
-          `\n  pageProps keys:        [${Object.keys(pp).join(", ")}]` +
-          `\n  initialState keys:     [${Object.keys(is).join(", ")}]` +
-          `\n  initialState.items keys: [${Object.keys(isItems).join(", ")}]`
-        );
+        const hasKnownPath = !!(is?.items?.originalList);
+        if (hasKnownPath) {
+          // Struttura corretta — Subito non ha annunci per questa keyword
+          console.log(`  ℹ️ Subito: 0 risultati per "${keyword}" (nessun annuncio su Subito)`);
+        } else {
+          // Struttura cambiata — serve diagnostica
+          const pp = nd?.props?.pageProps || {};
+          const isItems = is?.items || {};
+          console.warn(
+            `⚠️ Subito: struttura __NEXT_DATA__ cambiata per "${keyword}".` +
+            `\n  pageProps keys:          [${Object.keys(pp).join(", ")}]` +
+            `\n  initialState keys:       [${Object.keys(is).join(", ")}]` +
+            `\n  initialState.items keys: [${Object.keys(isItems).join(", ")}]`
+          );
+        }
       }
       return list;
     } catch (err) {
