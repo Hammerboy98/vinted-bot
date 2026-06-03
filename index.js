@@ -1,6 +1,7 @@
 require("dotenv").config();
 const axios               = require("axios");
 const { HttpsProxyAgent } = require("https-proxy-agent");
+let gotScraping; // caricato dinamicamente (ESM) all'avvio
 const TelegramBot   = require("node-telegram-bot-api");
 const express       = require("express");
 const path          = require("path");
@@ -235,40 +236,34 @@ async function refreshVintedSession() {
 }
 
 async function _execRefresh() {
-  console.log("🔄 Refresh sessione Vinted via HTTP...");
-  // Prova vinted.it, poi vinted.fr come fallback
+  console.log("🔄 Refresh sessione Vinted (got-scraping + TLS spoof)...");
   const domains = ["www.vinted.it", "www.vinted.fr"];
   for (const domain of domains) {
     try {
-      // Invia i cookie esistenti (anon_id ecc.) escludendo solo la sessione scaduta
       const cookieWithoutSession = (VINTED_COOKIE_STRING || "")
         .split(";").map(p => p.trim())
         .filter(p => !p.startsWith("_vinted_fr_session"))
         .join("; ");
-      console.log(`  → tentativo su ${domain} (cookie esistenti: ${cookieWithoutSession ? "sì" : "no"})`);
-      const res = await axios.get(`https://${domain}/`, {
-        timeout: 30000,
-        httpsAgent: vintedProxyAgent || undefined,
+      console.log(`  → tentativo su ${domain}`);
+
+      if (!gotScraping) throw new Error("got-scraping non caricato");
+      const res = await gotScraping.get(`https://${domain}/`, {
+        headerGeneratorOptions: {
+          browsers: [{ name: "chrome", minVersion: 120, maxVersion: 130 }],
+          devices: ["desktop"],
+          locales: ["it-IT", "it"],
+          operatingSystems: ["windows"],
+        },
+        proxyUrl: VINTED_PROXY_URL || undefined,
+        timeout: { request: 30000 },
+        followRedirect: true,
         headers: {
-          "User-Agent": getRandomUA(),
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-          "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-          "Accept-Encoding": "gzip, deflate, br",
-          "Cache-Control": "max-age=0",
-          "Connection": "keep-alive",
-          "Upgrade-Insecure-Requests": "1",
-          "Sec-Fetch-Dest": "document",
-          "Sec-Fetch-Mode": "navigate",
-          "Sec-Fetch-Site": "none",
-          "Sec-Fetch-User": "?1",
-          "sec-ch-ua": '"Chromium";v="149", "Google Chrome";v="149", "Not-A.Brand";v="99"',
-          "sec-ch-ua-mobile": "?0",
-          "sec-ch-ua-platform": '"Windows"',
-          ...(cookieWithoutSession ? { Cookie: cookieWithoutSession } : {}),
+          ...(cookieWithoutSession ? { cookie: cookieWithoutSession } : {}),
         },
       });
 
-      // Estrae cookie da Set-Cookie headers
+      // got-scraping: status e headers
+      const status = res.statusCode;
       const rawCookies = [].concat(res.headers["set-cookie"] || []);
       const cookieMap = {};
       for (const raw of rawCookies) {
@@ -276,12 +271,14 @@ async function _execRefresh() {
         if (m) cookieMap[m[1].trim()] = m[2].trim();
       }
 
+      console.log(`  ${domain} → HTTP ${status}, set-cookie: ${rawCookies.length}, session: ${!!cookieMap["_vinted_fr_session"]}`);
+
       if (!cookieMap["_vinted_fr_session"]) {
-        console.warn(`⚠️ ${domain}: _vinted_fr_session assente (CF challenge). Set-Cookie ricevuti: ${rawCookies.length}`);
-        continue; // prova il prossimo dominio
+        console.warn(`⚠️ ${domain}: _vinted_fr_session assente.`);
+        continue;
       }
 
-      // Unisce con i cookie esistenti (preserva quelli non aggiornati)
+      // Unisce con i cookie esistenti
       const existing = {};
       for (const part of (VINTED_COOKIE_STRING || "").split(";")) {
         const eq = part.indexOf("=");
@@ -291,20 +288,17 @@ async function _execRefresh() {
       VINTED_COOKIE_STRING = Object.entries(merged).map(([k, v]) => `${k}=${v}`).join("; ").replace(/[^\x20-\x7E]/g, "").trim();
       if (cookieMap["anon_id"]) VINTED_ANON_ID = cookieMap["anon_id"].replace(/[^\x20-\x7E]/g, "").trim();
 
-      // Estrae CSRF token dall'HTML
-      const html = typeof res.data === "string" ? res.data : "";
+      const html = typeof res.body === "string" ? res.body : "";
       const csrfMatch = html.match(/<meta[^>]+name="csrf-token"[^>]+content="([^"]+)"/);
       if (csrfMatch) VINTED_CSRF_TOKEN = csrfMatch[1].replace(/[^\x20-\x7E]/g, "").trim();
 
       await saveCookiesToDB();
-      console.log(`✅ Sessione Vinted aggiornata via HTTP (${domain}).`);
+      console.log(`✅ Sessione Vinted aggiornata (${domain}).`);
       return true;
     } catch (err) {
-      const status = err.response?.status;
-      const body = typeof err.response?.data === "string"
-        ? err.response.data.slice(0, 120).replace(/\s+/g, " ")
-        : JSON.stringify(err.response?.data || "").slice(0, 120);
-      console.error(`❌ HTTP refresh ${domain} → ${status || err.message} | ${body}`);
+      const status = err.response?.statusCode ?? err.response?.status;
+      const body = (err.response?.body ?? err.response?.data ?? "").toString().slice(0, 120).replace(/\s+/g, " ");
+      console.error(`❌ refresh ${domain} → ${status || err.message} | ${body}`);
     }
   }
   return false;
@@ -725,6 +719,12 @@ setInterval(async () => {
 process.on("unhandledRejection", reason => console.error("❌ Unhandled rejection:", reason));
 
 (async () => {
+  try {
+    ({ gotScraping } = await import("got-scraping"));
+    console.log("✅ got-scraping caricato.");
+  } catch (err) {
+    console.warn("⚠️ got-scraping non disponibile:", err.message);
+  }
   try {
     await initDB();
   } catch (err) {
