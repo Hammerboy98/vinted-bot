@@ -218,9 +218,13 @@ async function _execRefresh() {
     const executablePath = await chromium.executablePath;
     browser = await puppeteer.launch({
       args: [
-        ...chromium.args,
-        "--disable-features=site-isolation-for-navigation",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
         "--disable-setuid-sandbox",
+        "--no-sandbox",
+        "--no-zygote",
+        "--single-process",
+        "--disable-features=site-isolation-for-navigation",
         "--disable-blink-features=AutomationControlled",
         "--no-first-run",
         "--no-default-browser-check",
@@ -229,7 +233,7 @@ async function _execRefresh() {
       ],
       defaultViewport: { width: 1366, height: 768 },
       executablePath,
-      headless: chromium.headless,
+      headless: true,
     });
     const page = await browser.newPage();
     await page.setUserAgent(getRandomUA());
