@@ -219,7 +219,7 @@ async function _execRefresh() {
     const executablePath = await chromium.executablePath();
     browser = await puppeteer.launch({
       args: [
-        ...chromium.args,
+        ...chromium.args.filter(a => !["--enable-automation", "--enable-blink-features=IdleDetection"].includes(a)),
         "--disable-blink-features=AutomationControlled",
         "--lang=it-IT,it",
         "--window-size=1366,768",
