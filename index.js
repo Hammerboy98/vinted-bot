@@ -215,7 +215,7 @@ async function _execRefresh() {
   console.log("🔄 Refresh sessione Vinted...");
   let browser;
   try {
-    const executablePath = await chromium.executablePath();
+    const executablePath = await chromium.executablePath;
     browser = await puppeteer.launch({
       args: [
         ...chromium.args,
