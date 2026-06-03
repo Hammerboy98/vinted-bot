@@ -11,7 +11,8 @@ const nodemailer    = require("nodemailer");
 const { addExtra }  = require("puppeteer-extra");
 const puppeteerCore = require("puppeteer-core");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
-const chromium      = require("@sparticuz/chromium");
+const _chromiumMod  = require("@sparticuz/chromium");
+const chromium      = _chromiumMod.default ?? _chromiumMod;
 const { pool, initDB, PLAN_LIMITS } = require("./db");
 
 const puppeteer = addExtra(puppeteerCore);
@@ -215,25 +216,17 @@ async function _execRefresh() {
   console.log("🔄 Refresh sessione Vinted...");
   let browser;
   try {
-    const executablePath = await chromium.executablePath;
+    const executablePath = await chromium.executablePath();
     browser = await puppeteer.launch({
       args: [
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--disable-setuid-sandbox",
-        "--no-sandbox",
-        "--no-zygote",
-        "--single-process",
-        "--disable-features=site-isolation-for-navigation",
+        ...chromium.args,
         "--disable-blink-features=AutomationControlled",
-        "--no-first-run",
-        "--no-default-browser-check",
         "--lang=it-IT,it",
         "--window-size=1366,768",
       ],
       defaultViewport: { width: 1366, height: 768 },
       executablePath,
-      headless: true,
+      headless: "shell",
     });
     const page = await browser.newPage();
     await page.setUserAgent(getRandomUA());
