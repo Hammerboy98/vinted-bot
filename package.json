@@ -9,7 +9,6 @@
     "build": "npm install --no-audit"
   },
   "dependencies": {
-    "@sparticuz/chromium": "^149.0.0",
     "array.prototype.findindex": "^2.2.4",
     "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
@@ -22,10 +21,7 @@
     "node-telegram-bot-api": "^0.67.0",
     "pg": "^8.21.0",
     "stripe": "^17.0.0",
-    "proxy-from-env": "^1.1.0",
-    "puppeteer-core": "^25.1.0",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "proxy-from-env": "^1.1.0"
   },
   "engines": {
     "node": "22.x"

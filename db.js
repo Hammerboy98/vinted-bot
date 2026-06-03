@@ -43,6 +43,10 @@ async function initDB() {
         found_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE(user_id, link)
       );
+      CREATE TABLE IF NOT EXISTS bot_settings (
+        key   VARCHAR(100) PRIMARY KEY,
+        value TEXT
+      );
       CREATE INDEX IF NOT EXISTS idx_keywords_user    ON keywords(user_id);
       CREATE INDEX IF NOT EXISTS idx_found_items_user ON found_items(user_id, found_at DESC);
     `);

@@ -8,15 +8,7 @@ const crypto        = require("crypto");
 const bcrypt        = require("bcryptjs");
 const jwt           = require("jsonwebtoken");
 const nodemailer    = require("nodemailer");
-const { addExtra }  = require("puppeteer-extra");
-const puppeteerCore = require("puppeteer-core");
-const StealthPlugin = require("puppeteer-extra-plugin-stealth");
-const _chromiumMod  = require("@sparticuz/chromium");
-const chromium      = _chromiumMod.default ?? _chromiumMod;
 const { pool, initDB, PLAN_LIMITS } = require("./db");
-
-const puppeteer = addExtra(puppeteerCore);
-puppeteer.use(StealthPlugin());
 
 // ============================================================
 // CONFIG
@@ -122,8 +114,7 @@ function getExcludeTerms(keyword) {
 const bot = TELEGRAM_TOKEN
   ? new TelegramBot(TELEGRAM_TOKEN, { polling: false })
   : new Proxy({}, { get: () => () => Promise.resolve() });
-let isRunning     = false;
-let refreshPromise = null;
+let isRunning = false;
 
 const botStats = {
   isRunning:     false,
@@ -146,6 +137,30 @@ function saveState() {
       lastResetDate: botStats.lastResetDate,
     }));
   } catch (err) { console.error("❌ saveState:", err.message); }
+}
+
+async function loadCookiesFromDB() {
+  try {
+    const r = await pool.query("SELECT key, value FROM bot_settings WHERE key IN ('vinted_cookie','vinted_anon_id','vinted_csrf')");
+    for (const row of r.rows) {
+      if (row.key === "vinted_cookie"  && row.value) VINTED_COOKIE_STRING = row.value;
+      if (row.key === "vinted_anon_id" && row.value) VINTED_ANON_ID       = row.value;
+      if (row.key === "vinted_csrf"    && row.value) VINTED_CSRF_TOKEN    = row.value;
+    }
+    if (VINTED_COOKIE_STRING) console.log("📦 Cookie Vinted caricati dal DB.");
+  } catch (err) { console.error("❌ loadCookiesFromDB:", err.message); }
+}
+
+async function saveCookiesToDB() {
+  try {
+    await pool.query(`
+      INSERT INTO bot_settings (key, value) VALUES
+        ('vinted_cookie',  $1),
+        ('vinted_anon_id', $2),
+        ('vinted_csrf',    $3)
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    `, [VINTED_COOKIE_STRING, VINTED_ANON_ID, VINTED_CSRF_TOKEN]);
+  } catch (err) { console.error("❌ saveCookiesToDB:", err.message); }
 }
 
 // ============================================================
@@ -201,87 +216,77 @@ async function sendNotificationTo(chatId, caption, photoUrl) {
 }
 
 // ============================================================
-// VINTED SESSION REFRESH
+// VINTED SESSION REFRESH (HTTP — no Puppeteer)
 // ============================================================
-function refreshVintedSession() {
-  if (refreshPromise) {
-    console.log("⏳ Refresh già in corso...");
-    return refreshPromise;
+let _refreshing = false;
+
+async function refreshVintedSession() {
+  if (_refreshing) return false;
+  _refreshing = true;
+  try {
+    return await _execRefresh();
+  } finally {
+    _refreshing = false;
   }
-  refreshPromise = _execRefresh().finally(() => { refreshPromise = null; });
-  return refreshPromise;
 }
 
 async function _execRefresh() {
-  console.log("🔄 Refresh sessione Vinted...");
-  let browser;
+  console.log("🔄 Refresh sessione Vinted via HTTP...");
   try {
-    const executablePath = await chromium.executablePath();
-    browser = await puppeteer.launch({
-      args: [
-        ...chromium.args.filter(a => !["--enable-automation", "--enable-blink-features=IdleDetection"].includes(a)),
-        "--disable-blink-features=AutomationControlled",
-        "--lang=it-IT,it",
-        "--window-size=1366,768",
-      ],
-      defaultViewport: { width: 1366, height: 768 },
-      executablePath,
-      headless: "shell",
-    });
-    const page = await browser.newPage();
-    await page.setUserAgent(getRandomUA());
-    await page.setExtraHTTPHeaders({
-      "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-      "Accept-Encoding": "gzip, deflate, br",
+    const res = await axios.get("https://www.vinted.it/", {
+      timeout: 30000,
+      headers: {
+        "User-Agent": getRandomUA(),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Cache-Control": "max-age=0",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "sec-ch-ua": '"Chromium";v="149", "Google Chrome";v="149", "Not-A.Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+      },
     });
 
-    // Non bloccare risorse: CF challenge ha bisogno di JS/CSS/immagini per girarsi correttamente
-    await page.goto("https://www.vinted.it/", { waitUntil: "domcontentloaded", timeout: 60000 });
-
-    // Polling sul cookie _vinted_fr_session — fino a 30s per dare tempo al CF challenge
-    let sessionFound = false;
-    const deadline = Date.now() + 30000;
-    while (Date.now() < deadline) {
-      const cookies = await page.cookies();
-      sessionFound = cookies.some(c => c.name === "_vinted_fr_session");
-      if (sessionFound) break;
-      await delay(2000);
+    // Estrae cookie da Set-Cookie headers
+    const rawCookies = [].concat(res.headers["set-cookie"] || []);
+    const cookieMap = {};
+    for (const raw of rawCookies) {
+      const m = raw.match(/^([^=]+)=([^;]*)/);
+      if (m) cookieMap[m[1].trim()] = m[2].trim();
     }
 
-    if (!sessionFound) {
-      console.warn("⚠️ _vinted_fr_session non trovato dopo 30s (CF challenge non risolta).");
+    if (!cookieMap["_vinted_fr_session"]) {
+      console.warn("⚠️ _vinted_fr_session assente nella risposta HTTP (CF challenge attivo).");
       return false;
     }
 
-    const cookies = await page.cookies();
-    const cookieParts = [];
-    let newAnonId = null;
-    for (const c of cookies) {
-      cookieParts.push(`${c.name}=${c.value}`);
-      if (c.name === "anon_id") newAnonId = c.value;
+    // Unisce con i cookie esistenti (preserva quelli non aggiornati)
+    const existing = {};
+    for (const part of (VINTED_COOKIE_STRING || "").split(";")) {
+      const eq = part.indexOf("=");
+      if (eq > 0) existing[part.slice(0, eq).trim()] = part.slice(eq + 1).trim();
     }
-    const newCsrfToken = await page.evaluate(() => {
-      const meta = document.querySelector('meta[name="csrf-token"]');
-      return meta ? meta.getAttribute("content") : null;
-    }).catch(() => null);
+    const merged = { ...existing, ...cookieMap };
+    VINTED_COOKIE_STRING = Object.entries(merged).map(([k, v]) => `${k}=${v}`).join("; ").replace(/[^\x20-\x7E]/g, "").trim();
+    if (cookieMap["anon_id"]) VINTED_ANON_ID = cookieMap["anon_id"].replace(/[^\x20-\x7E]/g, "").trim();
 
-    VINTED_COOKIE_STRING = cookieParts.join("; ").replace(/[^\x20-\x7E]/g, "").trim();
-    if (newAnonId)    VINTED_ANON_ID   = newAnonId.replace(/[^\x20-\x7E]/g, "").trim();
-    if (newCsrfToken) VINTED_CSRF_TOKEN = newCsrfToken.replace(/[^\x20-\x7E]/g, "").trim();
-    console.log("✅ Sessione Vinted aggiornata.");
+    // Estrae CSRF token dall'HTML
+    const html = typeof res.data === "string" ? res.data : "";
+    const csrfMatch = html.match(/<meta[^>]+name="csrf-token"[^>]+content="([^"]+)"/);
+    if (csrfMatch) VINTED_CSRF_TOKEN = csrfMatch[1].replace(/[^\x20-\x7E]/g, "").trim();
+
+    await saveCookiesToDB();
+    console.log(`✅ Sessione Vinted aggiornata via HTTP.`);
     return true;
   } catch (err) {
-    console.error("❌ Errore Puppeteer:", err.message);
+    console.error("❌ HTTP refresh error:", err.message);
     return false;
-  } finally {
-    if (browser) {
-      const killTimer = setTimeout(() => {
-        console.warn("⚠️ browser.close() timeout — forzo SIGKILL");
-        try { browser.process()?.kill("SIGKILL"); } catch {}
-      }, 12000);
-      await browser.close().catch(() => {});
-      clearTimeout(killTimer);
-    }
   }
 }
 
@@ -289,9 +294,23 @@ async function _execRefresh() {
 // VINTED SEARCH
 // ============================================================
 function setVintedPause(hours, reason) {
+  if (Date.now() < vintedPausedUntil) return; // già in pausa, non ri-notificare
   vintedPausedUntil = Date.now() + hours * 60 * 60 * 1000;
   console.warn(`🔴 Vinted pausa globale ${hours}h — ${reason}`);
-  if (CHAT_ID) bot.sendMessage(CHAT_ID, `🔴 *Vinted* bloccato — pausa globale *${hours} ora/e*\nMotivo: ${reason}`, { parse_mode: "Markdown" }).catch(() => {});
+  if (CHAT_ID) {
+    bot.sendMessage(CHAT_ID,
+      `🔴 <b>Vinted bloccato</b> — ${escHtml(reason)}\n\n` +
+      `Il refresh automatico non riesce (Cloudflare blocca l'IP del server).\n\n` +
+      `<b>Per ripristinare manualmente:</b>\n` +
+      `1. Apri <a href="https://vinted.it">vinted.it</a> nel browser\n` +
+      `2. Premi <b>F12</b> → tab <b>Network</b> → ricarica la pagina\n` +
+      `3. Clicca su una richiesta → cerca l'header <code>Cookie</code>\n` +
+      `4. Invia al bot: <code>/setcookies IL_VALORE_COOKIE</code>\n\n` +
+      `Poi nella stessa richiesta copia <code>X-CSRF-Token</code> e invia:\n` +
+      `<code>/setcsrf IL_TOKEN</code>`,
+      { parse_mode: "HTML", disable_web_page_preview: true }
+    ).catch(() => {});
+  }
 }
 
 async function searchVinted(keyword) {
@@ -304,7 +323,7 @@ async function searchVinted(keyword) {
     console.warn("⚠️ Cookie Vinted mancanti, avvio refresh preventivo...");
     const ok = await refreshVintedSession();
     if (!ok) {
-      setVintedPause(2, "refresh sessione fallito (CF challenge)");
+      setVintedPause(2, "cookie mancanti e refresh HTTP fallito");
       return [];
     }
   }
@@ -336,13 +355,12 @@ async function searchVinted(keyword) {
     } catch (err) {
       const status = err.response?.status;
       if ((status === 401 || status === 403) && attempt < 3) {
-        console.warn(`⚠️ ${status} Vinted "${keyword}" — refresh...`);
+        console.warn(`⚠️ ${status} Vinted "${keyword}" — refresh HTTP...`);
         const ok = await refreshVintedSession();
         if (!ok) {
-          setVintedPause(2, "refresh sessione fallito (CF challenge)");
+          setVintedPause(2, `sessione scaduta (${status}) e refresh HTTP fallito`);
           return [];
         }
-        if (status === 403) await delay(randomDelay(5000, 10000));
         continue;
       }
       if (status === 429) {
@@ -687,6 +705,7 @@ process.on("unhandledRejection", reason => console.error("❌ Unhandled rejectio
     console.error("❌ DB init fallito:", err.message);
     process.exit(1);
   }
+  await loadCookiesFromDB();
   if (CHAT_ID) {
     bot.sendMessage(CHAT_ID, "🤖 *PokéBot v3 Avviato!* Sistema multi-utente attivo.", { parse_mode: "Markdown" })
        .catch(err => console.error("❌ Avvio:", err.message));
@@ -1305,8 +1324,39 @@ bot.onText(/\/status/, async msg => {
     pool.query("SELECT COUNT(*) FROM found_items WHERE user_id = $1 AND found_at >= CURRENT_DATE", [user.id]),
   ]);
   const lastCheck = botStats.lastCheckTime ? new Date(botStats.lastCheckTime).toLocaleString("it-IT") : "Mai";
+  const vintedStatus = Date.now() < vintedPausedUntil
+    ? `⏸ Pausa (${Math.ceil((vintedPausedUntil - Date.now()) / 60000)} min)`
+    : (user.vinted_enabled ? "✅ Attivo" : "⏸ Disabilitato");
   bot.sendMessage(chatId,
-    `📊 *Stato Bot*\n\nVinted: ${user.vinted_enabled ? "✅ Attivo" : "⏸ Pausato"}\neBay: ${user.ebay_enabled ? "✅ Attivo" : "⏸ Pausato"}\nSubito: ${user.subito_enabled ? "✅ Attivo" : "⏸ Pausato"}\nUltimo controllo: ${lastCheck}\nTrovati oggi: ${todayRes.rows[0].count}\nKeyword: ${kwRes.rows[0].count}\nPiano: ${user.plan}`,
+    `📊 *Stato Bot*\n\nVinted: ${vintedStatus}\neBay: ${user.ebay_enabled ? "✅ Attivo" : "⏸ Pausato"}\nSubito: ${user.subito_enabled ? "✅ Attivo" : "⏸ Pausato"}\nUltimo controllo: ${lastCheck}\nTrovati oggi: ${todayRes.rows[0].count}\nKeyword: ${kwRes.rows[0].count}\nPiano: ${user.plan}`,
     { parse_mode: "Markdown" }
   );
+});
+
+// ── COMANDI ADMIN (solo CHAT_ID) ─────────────────────────────
+bot.onText(/\/setcookies (.+)/s, async (msg, match) => {
+  if (msg.chat.id.toString() !== CHAT_ID) return;
+  VINTED_COOKIE_STRING = match[1].trim().replace(/[^\x20-\x7E]/g, "").trim();
+  const anonMatch = VINTED_COOKIE_STRING.match(/(?:^|;\s*)anon_id=([^;]+)/);
+  if (anonMatch) VINTED_ANON_ID = anonMatch[1].trim();
+  vintedPausedUntil = 0;
+  await saveCookiesToDB();
+  bot.sendMessage(msg.chat.id,
+    `✅ Cookie Vinted aggiornati.\nAnon ID: ${VINTED_ANON_ID || "non trovato"}\n\nOra invia: <code>/setcsrf TOKEN</code>`,
+    { parse_mode: "HTML" }
+  );
+});
+
+bot.onText(/\/setcsrf (.+)/, async (msg, match) => {
+  if (msg.chat.id.toString() !== CHAT_ID) return;
+  VINTED_CSRF_TOKEN = match[1].trim().replace(/[^\x20-\x7E]/g, "").trim();
+  vintedPausedUntil = 0;
+  await saveCookiesToDB();
+  bot.sendMessage(msg.chat.id, "✅ CSRF token aggiornato. Vinted riprende al prossimo ciclo.");
+});
+
+bot.onText(/\/resetvinted/, msg => {
+  if (msg.chat.id.toString() !== CHAT_ID) return;
+  vintedPausedUntil = 0;
+  bot.sendMessage(msg.chat.id, "✅ Pausa Vinted rimossa. Riprende al prossimo ciclo.");
 });
