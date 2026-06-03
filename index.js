@@ -240,7 +240,12 @@ async function _execRefresh() {
   const domains = ["www.vinted.it", "www.vinted.fr"];
   for (const domain of domains) {
     try {
-      console.log(`  → tentativo su ${domain}`);
+      // Invia i cookie esistenti (anon_id ecc.) escludendo solo la sessione scaduta
+      const cookieWithoutSession = (VINTED_COOKIE_STRING || "")
+        .split(";").map(p => p.trim())
+        .filter(p => !p.startsWith("_vinted_fr_session"))
+        .join("; ");
+      console.log(`  → tentativo su ${domain} (cookie esistenti: ${cookieWithoutSession ? "sì" : "no"})`);
       const res = await axios.get(`https://${domain}/`, {
         timeout: 30000,
         httpsAgent: vintedProxyAgent || undefined,
@@ -259,8 +264,9 @@ async function _execRefresh() {
           "sec-ch-ua": '"Chromium";v="149", "Google Chrome";v="149", "Not-A.Brand";v="99"',
           "sec-ch-ua-mobile": "?0",
           "sec-ch-ua-platform": '"Windows"',
+          ...(cookieWithoutSession ? { Cookie: cookieWithoutSession } : {}),
         },
-        });
+      });
 
       // Estrae cookie da Set-Cookie headers
       const rawCookies = [].concat(res.headers["set-cookie"] || []);
