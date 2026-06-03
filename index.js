@@ -1,5 +1,6 @@
 require("dotenv").config();
-const axios         = require("axios");
+const axios               = require("axios");
+const { HttpsProxyAgent } = require("https-proxy-agent");
 const TelegramBot   = require("node-telegram-bot-api");
 const express       = require("express");
 const path          = require("path");
@@ -30,7 +31,10 @@ const STRIPE_PRO_PRICE_ID     = process.env.STRIPE_PRO_PRICE_ID || "";
 const STRIPE_PREMIUM_PRICE_ID = process.env.STRIPE_PREMIUM_PRICE_ID || "";
 const stripe = STRIPE_SECRET_KEY ? require("stripe")(STRIPE_SECRET_KEY) : null;
 
-const REGISTRATION_CODE = process.env.REGISTRATION_CODE || "";
+const REGISTRATION_CODE  = process.env.REGISTRATION_CODE || "";
+const VINTED_PROXY_URL   = process.env.VINTED_PROXY_URL  || "";
+const vintedProxyAgent   = VINTED_PROXY_URL ? new HttpsProxyAgent(VINTED_PROXY_URL) : null;
+if (vintedProxyAgent) console.log("🔀 Vinted: proxy residenziale attivo.");
 
 const SMTP_HOST = process.env.SMTP_HOST || "";
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || "587");
@@ -232,62 +236,72 @@ async function refreshVintedSession() {
 
 async function _execRefresh() {
   console.log("🔄 Refresh sessione Vinted via HTTP...");
-  try {
-    const res = await axios.get("https://www.vinted.it/", {
-      timeout: 30000,
-      headers: {
-        "User-Agent": getRandomUA(),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Cache-Control": "max-age=0",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "sec-ch-ua": '"Chromium";v="149", "Google Chrome";v="149", "Not-A.Brand";v="99"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-      },
-    });
+  // Prova vinted.it, poi vinted.fr come fallback
+  const domains = ["www.vinted.it", "www.vinted.fr"];
+  for (const domain of domains) {
+    try {
+      console.log(`  → tentativo su ${domain}`);
+      const res = await axios.get(`https://${domain}/`, {
+        timeout: 30000,
+        httpsAgent: vintedProxyAgent || undefined,
+        headers: {
+          "User-Agent": getRandomUA(),
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+          "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+          "Accept-Encoding": "gzip, deflate, br",
+          "Cache-Control": "max-age=0",
+          "Connection": "keep-alive",
+          "Upgrade-Insecure-Requests": "1",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "none",
+          "Sec-Fetch-User": "?1",
+          "sec-ch-ua": '"Chromium";v="149", "Google Chrome";v="149", "Not-A.Brand";v="99"',
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": '"Windows"',
+        },
+        });
 
-    // Estrae cookie da Set-Cookie headers
-    const rawCookies = [].concat(res.headers["set-cookie"] || []);
-    const cookieMap = {};
-    for (const raw of rawCookies) {
-      const m = raw.match(/^([^=]+)=([^;]*)/);
-      if (m) cookieMap[m[1].trim()] = m[2].trim();
+      // Estrae cookie da Set-Cookie headers
+      const rawCookies = [].concat(res.headers["set-cookie"] || []);
+      const cookieMap = {};
+      for (const raw of rawCookies) {
+        const m = raw.match(/^([^=]+)=([^;]*)/);
+        if (m) cookieMap[m[1].trim()] = m[2].trim();
+      }
+
+      if (!cookieMap["_vinted_fr_session"]) {
+        console.warn(`⚠️ ${domain}: _vinted_fr_session assente (CF challenge). Set-Cookie ricevuti: ${rawCookies.length}`);
+        continue; // prova il prossimo dominio
+      }
+
+      // Unisce con i cookie esistenti (preserva quelli non aggiornati)
+      const existing = {};
+      for (const part of (VINTED_COOKIE_STRING || "").split(";")) {
+        const eq = part.indexOf("=");
+        if (eq > 0) existing[part.slice(0, eq).trim()] = part.slice(eq + 1).trim();
+      }
+      const merged = { ...existing, ...cookieMap };
+      VINTED_COOKIE_STRING = Object.entries(merged).map(([k, v]) => `${k}=${v}`).join("; ").replace(/[^\x20-\x7E]/g, "").trim();
+      if (cookieMap["anon_id"]) VINTED_ANON_ID = cookieMap["anon_id"].replace(/[^\x20-\x7E]/g, "").trim();
+
+      // Estrae CSRF token dall'HTML
+      const html = typeof res.data === "string" ? res.data : "";
+      const csrfMatch = html.match(/<meta[^>]+name="csrf-token"[^>]+content="([^"]+)"/);
+      if (csrfMatch) VINTED_CSRF_TOKEN = csrfMatch[1].replace(/[^\x20-\x7E]/g, "").trim();
+
+      await saveCookiesToDB();
+      console.log(`✅ Sessione Vinted aggiornata via HTTP (${domain}).`);
+      return true;
+    } catch (err) {
+      const status = err.response?.status;
+      const body = typeof err.response?.data === "string"
+        ? err.response.data.slice(0, 120).replace(/\s+/g, " ")
+        : JSON.stringify(err.response?.data || "").slice(0, 120);
+      console.error(`❌ HTTP refresh ${domain} → ${status || err.message} | ${body}`);
     }
-
-    if (!cookieMap["_vinted_fr_session"]) {
-      console.warn("⚠️ _vinted_fr_session assente nella risposta HTTP (CF challenge attivo).");
-      return false;
-    }
-
-    // Unisce con i cookie esistenti (preserva quelli non aggiornati)
-    const existing = {};
-    for (const part of (VINTED_COOKIE_STRING || "").split(";")) {
-      const eq = part.indexOf("=");
-      if (eq > 0) existing[part.slice(0, eq).trim()] = part.slice(eq + 1).trim();
-    }
-    const merged = { ...existing, ...cookieMap };
-    VINTED_COOKIE_STRING = Object.entries(merged).map(([k, v]) => `${k}=${v}`).join("; ").replace(/[^\x20-\x7E]/g, "").trim();
-    if (cookieMap["anon_id"]) VINTED_ANON_ID = cookieMap["anon_id"].replace(/[^\x20-\x7E]/g, "").trim();
-
-    // Estrae CSRF token dall'HTML
-    const html = typeof res.data === "string" ? res.data : "";
-    const csrfMatch = html.match(/<meta[^>]+name="csrf-token"[^>]+content="([^"]+)"/);
-    if (csrfMatch) VINTED_CSRF_TOKEN = csrfMatch[1].replace(/[^\x20-\x7E]/g, "").trim();
-
-    await saveCookiesToDB();
-    console.log(`✅ Sessione Vinted aggiornata via HTTP.`);
-    return true;
-  } catch (err) {
-    console.error("❌ HTTP refresh error:", err.message);
-    return false;
   }
+  return false;
 }
 
 // ============================================================
@@ -332,6 +346,7 @@ async function searchVinted(keyword) {
       const res = await axios.get("https://www.vinted.it/api/v2/catalog/items", {
         params: { search_text: keyword, per_page: 96, order: "newest_first" },
         timeout: 12000,
+        httpsAgent: vintedProxyAgent || undefined,
         headers: {
           "User-Agent": getRandomUA(),
           Accept: "application/json, text/plain, */*",
@@ -354,14 +369,19 @@ async function searchVinted(keyword) {
       return res.data.items || [];
     } catch (err) {
       const status = err.response?.status;
-      if ((status === 401 || status === 403) && attempt < 3) {
-        console.warn(`⚠️ ${status} Vinted "${keyword}" — refresh HTTP...`);
-        const ok = await refreshVintedSession();
-        if (!ok) {
-          setVintedPause(2, `sessione scaduta (${status}) e refresh HTTP fallito`);
-          return [];
+      if (status === 401 || status === 403) {
+        const body = typeof err.response?.data === "string"
+          ? err.response.data.slice(0, 150).replace(/\s+/g, " ")
+          : JSON.stringify(err.response?.data || "").slice(0, 150);
+        console.warn(`⚠️ ${status} Vinted "${keyword}" (attempt ${attempt}) | body: ${body}`);
+        if (attempt < 3) {
+          const ok = await refreshVintedSession();
+          if (!ok) {
+            setVintedPause(2, `sessione scaduta (${status}) e refresh HTTP fallito`);
+            return [];
+          }
+          continue;
         }
-        continue;
       }
       if (status === 429) {
         if (attempt < 3) {

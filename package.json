@@ -21,7 +21,8 @@
     "node-telegram-bot-api": "^0.67.0",
     "pg": "^8.21.0",
     "stripe": "^17.0.0",
-    "proxy-from-env": "^1.1.0"
+    "proxy-from-env": "^1.1.0",
+    "https-proxy-agent": "^7.0.0"
   },
   "engines": {
     "node": "22.x"
