@@ -217,46 +217,62 @@ async function _execRefresh() {
   try {
     const executablePath = await chromium.executablePath();
     browser = await puppeteer.launch({
-      args: [...chromium.args, "--disable-features=site-isolation-for-navigation", "--disable-setuid-sandbox"],
-      defaultViewport: chromium.defaultViewport,
+      args: [
+        ...chromium.args,
+        "--disable-features=site-isolation-for-navigation",
+        "--disable-setuid-sandbox",
+        "--disable-blink-features=AutomationControlled",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--lang=it-IT,it",
+        "--window-size=1366,768",
+      ],
+      defaultViewport: { width: 1366, height: 768 },
       executablePath,
       headless: chromium.headless,
     });
     const page = await browser.newPage();
     await page.setUserAgent(getRandomUA());
-    await page.setExtraHTTPHeaders({ "Accept-Language": "it-IT,it;q=0.9", "Accept-Encoding": "gzip, deflate, br" });
-    await page.setRequestInterception(true);
-    page.on("request", req => {
-      ["image", "stylesheet", "font", "media"].includes(req.resourceType()) ? req.abort() : req.continue();
+    await page.setExtraHTTPHeaders({
+      "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Accept-Encoding": "gzip, deflate, br",
     });
-    await page.goto("https://www.vinted.it/", { waitUntil: "domcontentloaded", timeout: 45000 });
-    try {
-      await page.waitForSelector('[data-testid="header--logo"]', { timeout: 15000 });
-    } catch {
-      console.warn("⚠️ Logo non trovato, attendo CF challenge...");
-      await delay(8000);
+
+    // Non bloccare risorse: CF challenge ha bisogno di JS/CSS/immagini per girarsi correttamente
+    await page.goto("https://www.vinted.it/", { waitUntil: "domcontentloaded", timeout: 60000 });
+
+    // Polling sul cookie _vinted_fr_session — fino a 30s per dare tempo al CF challenge
+    let sessionFound = false;
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+      const cookies = await page.cookies();
+      sessionFound = cookies.some(c => c.name === "_vinted_fr_session");
+      if (sessionFound) break;
+      await delay(2000);
+    }
+
+    if (!sessionFound) {
+      console.warn("⚠️ _vinted_fr_session non trovato dopo 30s (CF challenge non risolta).");
+      return false;
+    }
+
+    const cookies = await page.cookies();
+    const cookieParts = [];
+    let newAnonId = null;
+    for (const c of cookies) {
+      cookieParts.push(`${c.name}=${c.value}`);
+      if (c.name === "anon_id") newAnonId = c.value;
     }
     const newCsrfToken = await page.evaluate(() => {
       const meta = document.querySelector('meta[name="csrf-token"]');
       return meta ? meta.getAttribute("content") : null;
     }).catch(() => null);
-    const cookies = await page.cookies();
-    const cookieParts = [];
-    let newAnonId = null, sessionFound = false;
-    for (const c of cookies) {
-      cookieParts.push(`${c.name}=${c.value}`);
-      if (c.name === "_vinted_fr_session") sessionFound = true;
-      if (c.name === "anon_id") newAnonId = c.value;
-    }
-    if (sessionFound) {
-      VINTED_COOKIE_STRING = cookieParts.join("; ").replace(/[^\x20-\x7E]/g, "").trim();
-      if (newAnonId)     VINTED_ANON_ID    = newAnonId.replace(/[^\x20-\x7E]/g, "").trim();
-      if (newCsrfToken)  VINTED_CSRF_TOKEN = newCsrfToken.replace(/[^\x20-\x7E]/g, "").trim();
-      console.log("✅ Sessione Vinted aggiornata.");
-      return true;
-    }
-    console.warn("⚠️ _vinted_fr_session non trovato.");
-    return false;
+
+    VINTED_COOKIE_STRING = cookieParts.join("; ").replace(/[^\x20-\x7E]/g, "").trim();
+    if (newAnonId)    VINTED_ANON_ID   = newAnonId.replace(/[^\x20-\x7E]/g, "").trim();
+    if (newCsrfToken) VINTED_CSRF_TOKEN = newCsrfToken.replace(/[^\x20-\x7E]/g, "").trim();
+    console.log("✅ Sessione Vinted aggiornata.");
+    return true;
   } catch (err) {
     console.error("❌ Errore Puppeteer:", err.message);
     return false;
@@ -275,16 +291,25 @@ async function _execRefresh() {
 // ============================================================
 // VINTED SEARCH
 // ============================================================
+function setVintedPause(hours, reason) {
+  vintedPausedUntil = Date.now() + hours * 60 * 60 * 1000;
+  console.warn(`🔴 Vinted pausa globale ${hours}h — ${reason}`);
+  if (CHAT_ID) bot.sendMessage(CHAT_ID, `🔴 *Vinted* bloccato — pausa globale *${hours} ora/e*\nMotivo: ${reason}`, { parse_mode: "Markdown" }).catch(() => {});
+}
+
 async function searchVinted(keyword) {
   if (Date.now() < vintedPausedUntil) {
     const remaining = Math.ceil((vintedPausedUntil - Date.now()) / 60000);
-    console.log(`  ⏸ Vinted in pausa rate-limit — ancora ${remaining} min`);
+    console.log(`  ⏸ Vinted in pausa — ancora ${remaining} min`);
     return [];
   }
   if (!VINTED_COOKIE_STRING || !VINTED_CSRF_TOKEN) {
     console.warn("⚠️ Cookie Vinted mancanti, avvio refresh preventivo...");
     const ok = await refreshVintedSession();
-    if (!ok) { console.error("🔴 Refresh fallito, skip Vinted."); return []; }
+    if (!ok) {
+      setVintedPause(2, "refresh sessione fallito (CF challenge)");
+      return [];
+    }
   }
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -316,7 +341,10 @@ async function searchVinted(keyword) {
       if ((status === 401 || status === 403) && attempt < 3) {
         console.warn(`⚠️ ${status} Vinted "${keyword}" — refresh...`);
         const ok = await refreshVintedSession();
-        if (!ok) return [];
+        if (!ok) {
+          setVintedPause(2, "refresh sessione fallito (CF challenge)");
+          return [];
+        }
         if (status === 403) await delay(randomDelay(5000, 10000));
         continue;
       }
@@ -327,9 +355,7 @@ async function searchVinted(keyword) {
           await delay(backoff);
           continue;
         }
-        vintedPausedUntil = Date.now() + 60 * 60 * 1000;
-        console.warn("🔴 Vinted rate limit esaurito (3 tentativi) — pausa globale 1h");
-        if (CHAT_ID) bot.sendMessage(CHAT_ID, "🔴 *Vinted* rate limit — pausa globale *1 ora*.", { parse_mode: "Markdown" }).catch(() => {});
+        setVintedPause(1, "rate limit 429 esaurito (3 tentativi)");
         return [];
       }
       console.error(`❌ Errore Vinted "${keyword}":`, err.message);
