@@ -261,7 +261,14 @@ async function _execRefresh() {
     console.error("❌ Errore Puppeteer:", err.message);
     return false;
   } finally {
-    if (browser) await browser.close();
+    if (browser) {
+      const killTimer = setTimeout(() => {
+        console.warn("⚠️ browser.close() timeout — forzo SIGKILL");
+        try { browser.process()?.kill("SIGKILL"); } catch {}
+      }, 12000);
+      await browser.close().catch(() => {});
+      clearTimeout(killTimer);
+    }
   }
 }
 
@@ -269,6 +276,11 @@ async function _execRefresh() {
 // VINTED SEARCH
 // ============================================================
 async function searchVinted(keyword) {
+  if (Date.now() < vintedPausedUntil) {
+    const remaining = Math.ceil((vintedPausedUntil - Date.now()) / 60000);
+    console.log(`  ⏸ Vinted in pausa rate-limit — ancora ${remaining} min`);
+    return [];
+  }
   if (!VINTED_COOKIE_STRING || !VINTED_CSRF_TOKEN) {
     console.warn("⚠️ Cookie Vinted mancanti, avvio refresh preventivo...");
     const ok = await refreshVintedSession();
@@ -308,11 +320,17 @@ async function searchVinted(keyword) {
         if (status === 403) await delay(randomDelay(5000, 10000));
         continue;
       }
-      if (status === 429 && attempt < 3) {
-        const backoff = Math.min(300000, 30000 * Math.pow(2, attempt - 1));
-        console.warn(`⏳ 429 rate limit Vinted, attendo ${backoff / 1000}s...`);
-        await delay(backoff);
-        continue;
+      if (status === 429) {
+        if (attempt < 3) {
+          const backoff = Math.min(300000, 30000 * Math.pow(2, attempt - 1));
+          console.warn(`⏳ 429 rate limit Vinted, attendo ${backoff / 1000}s...`);
+          await delay(backoff);
+          continue;
+        }
+        vintedPausedUntil = Date.now() + 60 * 60 * 1000;
+        console.warn("🔴 Vinted rate limit esaurito (3 tentativi) — pausa globale 1h");
+        if (CHAT_ID) bot.sendMessage(CHAT_ID, "🔴 *Vinted* rate limit — pausa globale *1 ora*.", { parse_mode: "Markdown" }).catch(() => {});
+        return [];
       }
       console.error(`❌ Errore Vinted "${keyword}":`, err.message);
       return [];
@@ -324,6 +342,8 @@ async function searchVinted(keyword) {
 // ============================================================
 // EBAY BROWSE API (OAuth client credentials)
 // ============================================================
+let vintedPausedUntil = 0;
+
 let ebayPausedUntil  = 0;
 let ebayAccessToken  = null;
 let ebayTokenExpiry  = 0;
@@ -652,7 +672,15 @@ process.on("unhandledRejection", reason => console.error("❌ Unhandled rejectio
   while (true) {
     console.log("--- Prossimo ciclo tra 15 minuti. ---");
     await delay(900000);
-    await checkAll();
+    try {
+      await checkAll();
+    } catch (err) {
+      console.error("❌ ERRORE FATALE loop:", err.message);
+      isRunning = false;
+      botStats.isRunning = false;
+      if (CHAT_ID) bot.sendMessage(CHAT_ID, `🚨 *ERRORE FATALE loop*\n\`${err.message}\`\nRiprovo tra 60s.`, { parse_mode: "Markdown" }).catch(() => {});
+      await delay(60000);
+    }
   }
 })();
 
