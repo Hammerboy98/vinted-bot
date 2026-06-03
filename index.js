@@ -412,63 +412,82 @@ async function searchVinted(keyword) {
     console.log(`  ⏸ Vinted in pausa — ancora ${remaining} min`);
     return [];
   }
-  // Costruisce le varianti di header da tentare in sequenza:
-  // 1. con cookie completi  2. solo anon_id  3. completamente anonimo
-  const headerVariants = [
-    // con sessione
-    VINTED_COOKIE_STRING ? {
-      Cookie: VINTED_COOKIE_STRING,
-      "X-Anon-Id": VINTED_ANON_ID,
-      "X-CSRF-Token": VINTED_CSRF_TOKEN,
-    } : null,
-    // solo anon_id (sessione scaduta ma anon_id ancora valido)
-    VINTED_ANON_ID ? { "X-Anon-Id": VINTED_ANON_ID } : null,
-    // completamente anonimo
-    {},
-  ].filter(Boolean);
 
-  for (const extraHeaders of headerVariants) {
+  const makeRequest = (extraHeaders) => axios.get("https://www.vinted.it/api/v2/catalog/items", {
+    params: { search_text: keyword, per_page: 96, order: "newest_first" },
+    timeout: 12000,
+    httpsAgent: vintedProxyAgent || undefined,
+    headers: {
+      "User-Agent": getRandomUA(),
+      Accept: "application/json, text/plain, */*",
+      "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Accept-Encoding": "gzip, deflate, br",
+      Referer: "https://www.vinted.it/",
+      Connection: "keep-alive",
+      "X-Money-Object": "true",
+      "Sec-Fetch-Site": "same-origin",
+      "Sec-Fetch-Mode": "cors",
+      "Sec-Fetch-Dest": "empty",
+      "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": '"Windows"',
+      ...extraHeaders,
+    },
+  });
+
+  // Tentativo 1: con sessione corrente
+  for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await axios.get("https://www.vinted.it/api/v2/catalog/items", {
-        params: { search_text: keyword, per_page: 96, order: "newest_first" },
-        timeout: 12000,
-        httpsAgent: vintedProxyAgent || undefined,
-        headers: {
-          "User-Agent": getRandomUA(),
-          Accept: "application/json, text/plain, */*",
-          "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-          "Accept-Encoding": "gzip, deflate, br",
-          Referer: "https://www.vinted.it/",
-          Connection: "keep-alive",
-          "X-Money-Object": "true",
-          "Sec-Fetch-Site": "same-origin",
-          "Sec-Fetch-Mode": "cors",
-          "Sec-Fetch-Dest": "empty",
-          "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-          "sec-ch-ua-mobile": "?0",
-          "sec-ch-ua-platform": '"Windows"',
-          ...extraHeaders,
-        },
-      });
-      const label = extraHeaders.Cookie ? "sessione" : extraHeaders["X-Anon-Id"] ? "anon" : "anonimo";
-      if (label !== "sessione") console.log(`  ✅ Vinted risponde in modalità ${label}`);
+      const res = await makeRequest(VINTED_COOKIE_STRING ? {
+        Cookie: VINTED_COOKIE_STRING,
+        "X-Anon-Id": VINTED_ANON_ID,
+        "X-CSRF-Token": VINTED_CSRF_TOKEN,
+      } : {});
       return res.data.items || [];
     } catch (err) {
       const status = err.response?.status;
       if (status === 429) {
-        const backoff = 30000;
-        console.warn(`⏳ 429 rate limit Vinted, attendo ${backoff / 1000}s...`);
-        await delay(backoff);
+        if (attempt < 3) {
+          const backoff = Math.min(300000, 30000 * Math.pow(2, attempt - 1));
+          console.warn(`⏳ 429 rate limit Vinted, attendo ${backoff / 1000}s...`);
+          await delay(backoff);
+          continue;
+        }
+        setVintedPause(1, "rate limit 429 esaurito");
+        return [];
+      }
+      if ((status === 401 || status === 403) && attempt < 3) {
+        console.warn(`⚠️ ${status} Vinted "${keyword}" — refresh (Puppeteer)...`);
+        const ok = await refreshVintedSession();
+        if (!ok) break; // refresh fallito → prova varianti anonime
         continue;
       }
-      const label = extraHeaders.Cookie ? "sessione" : extraHeaders["X-Anon-Id"] ? "anon" : "anonimo";
-      console.warn(`⚠️ Vinted ${label} → ${status || err.message}`);
+      if (status === 401 || status === 403) break;
+      console.error(`❌ Errore Vinted "${keyword}":`, err.message);
+      return [];
     }
   }
 
-  // Tutte le varianti fallite — controlla se è un problema di sessione
-  console.warn(`❌ Vinted: tutte le varianti fallite per "${keyword}"`);
-  setVintedPause(2, "tutte le varianti di accesso fallite");
+  // Tentativo 2: solo anon_id (sessione scaduta)
+  if (VINTED_ANON_ID) {
+    try {
+      const res = await makeRequest({ "X-Anon-Id": VINTED_ANON_ID });
+      console.log("  ✅ Vinted risponde in modalità anon");
+      return res.data.items || [];
+    } catch {}
+  }
+
+  // Tentativo 3: completamente anonimo
+  try {
+    const res = await makeRequest({});
+    console.log("  ✅ Vinted risponde in modalità anonima");
+    return res.data.items || [];
+  } catch (err) {
+    const status = err.response?.status;
+    console.warn(`⚠️ Vinted anonimo → ${status || err.message}`);
+  }
+
+  setVintedPause(2, "sessione scaduta, refresh fallito, accesso anonimo bloccato");
   return [];
 }
 
