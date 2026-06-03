@@ -1,6 +1,13 @@
 require("dotenv").config();
 const axios               = require("axios");
 const { HttpsProxyAgent } = require("https-proxy-agent");
+const { addExtra }        = require("puppeteer-extra");
+const puppeteerCore       = require("puppeteer-core");
+const StealthPlugin       = require("puppeteer-extra-plugin-stealth");
+const _chromiumMod        = require("@sparticuz/chromium");
+const chromium            = _chromiumMod.default ?? _chromiumMod;
+const puppeteer           = addExtra(puppeteerCore);
+puppeteer.use(StealthPlugin());
 let gotScraping; // caricato dinamicamente (ESM) all'avvio
 const TelegramBot   = require("node-telegram-bot-api");
 const express       = require("express");
@@ -221,7 +228,7 @@ async function sendNotificationTo(chatId, caption, photoUrl) {
 }
 
 // ============================================================
-// VINTED SESSION REFRESH (HTTP — no Puppeteer)
+// VINTED SESSION REFRESH
 // ============================================================
 let _refreshing = false;
 
@@ -229,9 +236,81 @@ async function refreshVintedSession() {
   if (_refreshing) return false;
   _refreshing = true;
   try {
+    // 1° tentativo: Puppeteer (esegue JS, può risolvere la challenge)
+    const ok = await _execRefreshPuppeteer();
+    if (ok) return true;
+    // 2° tentativo: HTTP con TLS spoof (got-scraping)
     return await _execRefresh();
   } finally {
     _refreshing = false;
+  }
+}
+
+async function _execRefreshPuppeteer() {
+  console.log("🔄 Refresh Vinted (Puppeteer)...");
+  let browser;
+  try {
+    const executablePath = await chromium.executablePath();
+    browser = await puppeteer.launch({
+      args: [
+        ...chromium.args,
+        "--disable-blink-features=AutomationControlled",
+        "--lang=it-IT,it",
+        "--window-size=1366,768",
+      ],
+      defaultViewport: { width: 1366, height: 768 },
+      executablePath,
+      headless: chromium.headless,
+    });
+    const page = await browser.newPage();
+    await page.setUserAgent(getRandomUA());
+    await page.setExtraHTTPHeaders({
+      "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+    });
+    await page.goto("https://www.vinted.it/", { waitUntil: "domcontentloaded", timeout: 60000 });
+
+    // Polling sul cookie _vinted_fr_session — fino a 30s per la challenge
+    let sessionFound = false;
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+      const cookies = await page.cookies();
+      sessionFound = cookies.some(c => c.name === "_vinted_fr_session");
+      if (sessionFound) break;
+      await delay(2000);
+    }
+    if (!sessionFound) {
+      console.warn("⚠️ Puppeteer: _vinted_fr_session non trovato dopo 30s.");
+      return false;
+    }
+    const cookies = await page.cookies();
+    const cookieParts = [];
+    let newAnonId = null;
+    for (const c of cookies) {
+      cookieParts.push(`${c.name}=${c.value}`);
+      if (c.name === "anon_id") newAnonId = c.value;
+    }
+    const newCsrfToken = await page.evaluate(() => {
+      const meta = document.querySelector('meta[name="csrf-token"]');
+      return meta ? meta.getAttribute("content") : null;
+    }).catch(() => null);
+    VINTED_COOKIE_STRING = cookieParts.join("; ").replace(/[^\x20-\x7E]/g, "").trim();
+    if (newAnonId)    VINTED_ANON_ID   = newAnonId.replace(/[^\x20-\x7E]/g, "").trim();
+    if (newCsrfToken) VINTED_CSRF_TOKEN = newCsrfToken.replace(/[^\x20-\x7E]/g, "").trim();
+    await saveCookiesToDB();
+    console.log("✅ Sessione Vinted aggiornata (Puppeteer).");
+    return true;
+  } catch (err) {
+    console.error("❌ Puppeteer refresh error:", err.message);
+    return false;
+  } finally {
+    if (browser) {
+      const killTimer = setTimeout(() => {
+        console.warn("⚠️ browser.close() timeout — forzo SIGKILL");
+        try { browser.process()?.kill("SIGKILL"); } catch {}
+      }, 12000);
+      await browser.close().catch(() => {});
+      clearTimeout(killTimer);
+    }
   }
 }
 

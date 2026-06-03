@@ -23,7 +23,11 @@
     "stripe": "^17.0.0",
     "proxy-from-env": "^1.1.0",
     "https-proxy-agent": "^7.0.0",
-    "got-scraping": "^4.0.4"
+    "got-scraping": "^4.0.4",
+    "@sparticuz/chromium": "^131.0.1",
+    "puppeteer-core": "^22.0.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "engines": {
     "node": "22.x"
