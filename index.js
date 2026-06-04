@@ -269,17 +269,18 @@ async function _execRefreshPuppeteer() {
     });
     await page.goto("https://www.vinted.it/", { waitUntil: "domcontentloaded", timeout: 60000 });
 
-    // Polling sul cookie _vinted_fr_session — fino a 30s per la challenge
+    // Polling sul cookie di sessione Vinted — fino a 30s per la challenge
+    // Vinted ha migrato da _vinted_fr_session a access_token_web
     let sessionFound = false;
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
       const cookies = await page.cookies();
-      sessionFound = cookies.some(c => c.name === "_vinted_fr_session");
+      sessionFound = cookies.some(c => c.name === "access_token_web" || c.name === "_vinted_fr_session");
       if (sessionFound) break;
       await delay(2000);
     }
     if (!sessionFound) {
-      console.warn("⚠️ Puppeteer: _vinted_fr_session non trovato dopo 30s.");
+      console.warn("⚠️ Puppeteer: cookie di sessione Vinted non trovato dopo 30s.");
       return false;
     }
     const cookies = await page.cookies();
@@ -352,8 +353,8 @@ async function _execRefresh() {
 
       console.log(`  ${domain} → HTTP ${status}, set-cookie: ${rawCookies.length}, session: ${!!cookieMap["_vinted_fr_session"]}`);
 
-      if (!cookieMap["_vinted_fr_session"]) {
-        console.warn(`⚠️ ${domain}: _vinted_fr_session assente.`);
+      if (!cookieMap["_vinted_fr_session"] && !cookieMap["access_token_web"]) {
+        console.warn(`⚠️ ${domain}: cookie di sessione Vinted assente.`);
         continue;
       }
 
