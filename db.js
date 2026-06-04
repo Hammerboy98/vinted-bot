@@ -47,8 +47,11 @@ async function initDB() {
         key   VARCHAR(100) PRIMARY KEY,
         value TEXT
       );
-      CREATE INDEX IF NOT EXISTS idx_keywords_user    ON keywords(user_id);
-      CREATE INDEX IF NOT EXISTS idx_found_items_user ON found_items(user_id, found_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_keywords_user        ON keywords(user_id);
+      CREATE INDEX IF NOT EXISTS idx_keywords_user_active  ON keywords(user_id, active);
+      CREATE INDEX IF NOT EXISTS idx_found_items_user      ON found_items(user_id, found_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_found_items_found_at  ON found_items(found_at);
+      CREATE INDEX IF NOT EXISTS idx_found_items_platform  ON found_items(platform, found_at DESC);
     `);
     await client.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id     VARCHAR(100) UNIQUE;

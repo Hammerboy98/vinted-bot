@@ -632,13 +632,30 @@ async function searchSubito(keyword) {
 }
 
 // ============================================================
+// DB CLEANUP — elimina found_items > 30 giorni
+// ============================================================
+async function cleanupOldItems() {
+  try {
+    const res = await pool.query(
+      `DELETE FROM found_items WHERE found_at < NOW() - INTERVAL '30 days'`
+    );
+    const deleted = res.rowCount || 0;
+    if (deleted > 0) console.log(`🧹 Cleanup DB: eliminati ${deleted} articoli > 30 giorni.`);
+  } catch (err) {
+    console.error("❌ cleanupOldItems:", err.message);
+  }
+}
+
+// ============================================================
 // MAIN CHECK LOOP — multi-utente
 // ============================================================
 async function checkAll() {
   if (isRunning) {
     const stuckMs = Date.now() - (checkAll._startedAt || 0);
-    if (stuckMs > 20 * 60 * 1000) {
-      console.warn("⚠️ isRunning bloccato da oltre 20 min — reset forzato.");
+    // Timeout dinamico: almeno 30 min + 20s per ogni keyword attiva
+    const dynamicTimeout = Math.max(30 * 60 * 1000, (checkAll._kwCount || 50) * 20 * 1000);
+    if (stuckMs > dynamicTimeout) {
+      console.warn(`⚠️ isRunning bloccato da oltre ${Math.round(stuckMs / 60000)} min — reset forzato.`);
       isRunning = false; botStats.isRunning = false;
     } else return;
   }
@@ -670,6 +687,7 @@ async function checkAll() {
         kwMap.get(kwSearch).push({ ...user, priceMax: kw.price_max ?? null, priceMin: kw.price_min ?? null });
       }
     }
+    checkAll._kwCount = kwMap.size;
     console.log(`🔑 ${kwMap.size} keyword uniche per ${users.length} utenti.`);
 
     for (const [keyword, kwUsers] of kwMap) {
@@ -824,6 +842,8 @@ process.on("unhandledRejection", reason => console.error("❌ Unhandled rejectio
     process.exit(1);
   }
   await loadCookiesFromDB();
+  await cleanupOldItems();
+  setInterval(cleanupOldItems, 24 * 60 * 60 * 1000); // ogni 24h
   if (CHAT_ID) {
     bot.sendMessage(CHAT_ID, "🤖 *PokéBot v3 Avviato!* Sistema multi-utente attivo.", { parse_mode: "Markdown" })
        .catch(err => console.error("❌ Avvio:", err.message));
@@ -1396,6 +1416,37 @@ if (externalUrl) {
   bot.startPolling();
   app.get("/", (_, res) => res.send("PokéBot v3 attivo (polling locale)."));
 }
+
+// ── HEALTH ───────────────────────────────────────────────────
+app.get("/health", async (_, res) => {
+  let dbOk = false;
+  let userCount = 0;
+  let kwCount = 0;
+  let foundCount = 0;
+  try {
+    const [uRes, kRes, fRes] = await Promise.all([
+      pool.query("SELECT COUNT(*) FROM users"),
+      pool.query("SELECT COUNT(*) FROM keywords WHERE active = TRUE"),
+      pool.query("SELECT COUNT(*) FROM found_items WHERE found_at > NOW() - INTERVAL '24 hours'"),
+    ]);
+    userCount  = parseInt(uRes.rows[0].count);
+    kwCount    = parseInt(kRes.rows[0].count);
+    foundCount = parseInt(fRes.rows[0].count);
+    dbOk = true;
+  } catch {}
+  res.json({
+    status: "ok",
+    uptime_s: Math.round(process.uptime()),
+    db: dbOk ? "ok" : "error",
+    vinted_paused: vintedPausedUntil > Date.now(),
+    cycle_running: isRunning,
+    last_check: botStats.lastCheckTime || null,
+    users: userCount,
+    active_keywords: kwCount,
+    found_last_24h: foundCount,
+    proxy: !!VINTED_PROXY_URL,
+  });
+});
 
 app.listen(PORT, () => console.log(`🚀 Server su porta ${PORT}`));
 
