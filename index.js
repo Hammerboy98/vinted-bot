@@ -232,6 +232,27 @@ async function sendNotificationTo(chatId, caption, photoUrl) {
 // ============================================================
 let _refreshing = false;
 
+// Legge la scadenza del JWT access_token_web dal cookie string
+function getVintedTokenExpiry(cookieString) {
+  if (!cookieString) return 0;
+  const m = cookieString.match(/access_token_web=([A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)/);
+  if (!m) return 0;
+  try {
+    const payload = JSON.parse(Buffer.from(m[1].split(".")[1], "base64url").toString("utf8"));
+    return (payload.exp || 0) * 1000;
+  } catch { return 0; }
+}
+
+// Rinnova il token in anticipo se mancano meno di 10 minuti alla scadenza
+async function proactiveTokenRefresh() {
+  const expiry = getVintedTokenExpiry(VINTED_COOKIE_STRING);
+  if (!expiry) return; // nessun token → il refresh scatterà sul primo 401
+  const minsLeft = Math.round((expiry - Date.now()) / 60000);
+  if (minsLeft > 10) return; // ancora valido, non serve
+  console.log(`🔄 Token Vinted scade tra ${minsLeft} min — refresh proattivo...`);
+  await refreshVintedSession();
+}
+
 async function refreshVintedSession() {
   if (_refreshing) return false;
   _refreshing = true;
@@ -327,7 +348,9 @@ async function _execRefresh() {
       console.log(`  → tentativo su ${domain}`);
 
       if (!gotScraping) throw new Error("got-scraping non caricato");
-      const res = await gotScraping.get(`https://${domain}/`, {
+      // Usa session-refresh (pagina leggera) invece della homepage completa (~1-2MB)
+      const refreshUrl = `https://${domain}/session-refresh?ref_url=%2F`;
+      const res = await gotScraping.get(refreshUrl, {
         headerGeneratorOptions: {
           browsers: [{ name: "chrome", minVersion: 120, maxVersion: 130 }],
           devices: ["desktop"],
@@ -354,8 +377,21 @@ async function _execRefresh() {
       console.log(`  ${domain} → HTTP ${status}, set-cookie: ${rawCookies.length}, session: ${!!cookieMap["_vinted_fr_session"]}`);
 
       if (!cookieMap["_vinted_fr_session"] && !cookieMap["access_token_web"]) {
-        console.warn(`⚠️ ${domain}: cookie di sessione Vinted assente.`);
-        continue;
+        // session-refresh non ha restituito token: fallback sulla homepage
+        console.warn(`⚠️ ${domain}: session-refresh senza token, provo homepage...`);
+        const fallback = await gotScraping.get(`https://${domain}/`, {
+          headerGeneratorOptions: { browsers: [{ name: "chrome", minVersion: 120, maxVersion: 130 }], devices: ["desktop"], locales: ["it-IT", "it"], operatingSystems: ["windows"] },
+          proxyUrl: VINTED_PROXY_URL || undefined,
+          timeout: { request: 30000 },
+          followRedirect: true,
+          headers: { ...(cookieWithoutSession ? { cookie: cookieWithoutSession } : {}) },
+        });
+        const fbCookies = [].concat(fallback.headers["set-cookie"] || []);
+        for (const raw of fbCookies) { const m = raw.match(/^([^=]+)=([^;]*)/); if (m) cookieMap[m[1].trim()] = m[2].trim(); }
+        if (!cookieMap["_vinted_fr_session"] && !cookieMap["access_token_web"]) {
+          console.warn(`⚠️ ${domain}: cookie di sessione Vinted assente.`);
+          continue;
+        }
       }
 
       // Unisce con i cookie esistenti
@@ -848,11 +884,13 @@ process.on("unhandledRejection", reason => console.error("❌ Unhandled rejectio
     bot.sendMessage(CHAT_ID, "🤖 *PokéBot v3 Avviato!* Sistema multi-utente attivo.", { parse_mode: "Markdown" })
        .catch(err => console.error("❌ Avvio:", err.message));
   }
+  await proactiveTokenRefresh();
   await checkAll();
   while (true) {
     console.log("--- Prossimo ciclo tra 20 minuti. ---");
     await delay(1200000);
     try {
+      await proactiveTokenRefresh();
       await checkAll();
     } catch (err) {
       console.error("❌ ERRORE FATALE loop:", err.message);
