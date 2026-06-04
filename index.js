@@ -1208,6 +1208,31 @@ app.post("/panel/api/toggle/:platform", requireAuth, async (req, res) => {
   }
 });
 
+// ── ADMIN: VINTED COOKIE REFRESH ─────────────────────────────
+app.post("/admin/vinted-cookie", async (req, res) => {
+  const secret = req.headers["x-admin-secret"] || "";
+  if (!secret || secret !== JWT_SECRET) {
+    return res.status(401).json({ error: "Non autorizzato." });
+  }
+  const { cookie, anon_id, csrf } = req.body;
+  if (!cookie) return res.status(400).json({ error: "Campo 'cookie' obbligatorio." });
+
+  const clean = s => (s || "").replace(/[^\x20-\x7E]/g, "").trim();
+  VINTED_COOKIE_STRING = clean(cookie);
+  VINTED_ANON_ID       = clean(anon_id);
+  VINTED_CSRF_TOKEN    = clean(csrf);
+  vintedPausedUntil    = 0; // sblocca subito le ricerche
+
+  try {
+    await saveCookiesToDB();
+    console.log("🔑 Cookie Vinted aggiornati via endpoint admin.");
+    res.json({ ok: true, message: "Cookie salvati. Vinted sbloccato." });
+  } catch (err) {
+    console.error("❌ /admin/vinted-cookie:", err.message);
+    res.status(500).json({ error: "Errore salvataggio DB." });
+  }
+});
+
 // ── STRIPE ───────────────────────────────────────────────────
 app.post("/panel/api/stripe/webhook", async (req, res) => {
   if (!stripe || !STRIPE_WEBHOOK_SECRET) return res.sendStatus(200);
