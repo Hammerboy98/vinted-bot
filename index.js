@@ -415,7 +415,7 @@ async function searchVinted(keyword) {
   }
 
   const makeRequest = (extraHeaders) => axios.get("https://www.vinted.it/api/v2/catalog/items", {
-    params: { search_text: keyword, per_page: 96, order: "newest_first" },
+    params: { search_text: keyword, per_page: 10, order: "newest_first" },
     timeout: 12000,
     httpsAgent: vintedProxyAgent || undefined,
     headers: {
@@ -830,8 +830,8 @@ process.on("unhandledRejection", reason => console.error("❌ Unhandled rejectio
   }
   await checkAll();
   while (true) {
-    console.log("--- Prossimo ciclo tra 15 minuti. ---");
-    await delay(900000);
+    console.log("--- Prossimo ciclo tra 20 minuti. ---");
+    await delay(1200000);
     try {
       await checkAll();
     } catch (err) {
