@@ -28,6 +28,9 @@ async function initDB() {
         id         SERIAL PRIMARY KEY,
         user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         search     VARCHAR(500) NOT NULL,
+        price_max  NUMERIC DEFAULT NULL,
+        price_min  NUMERIC DEFAULT NULL,
+        active     BOOLEAN NOT NULL DEFAULT TRUE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE(user_id, search)
       );
