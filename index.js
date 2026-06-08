@@ -814,7 +814,7 @@ async function checkAll() {
           if (imageBase) {
             const absBase = imageBase.startsWith("//") ? "https:" + imageBase : imageBase;
             if (absBase.startsWith("http")) {
-              image = absBase.includes("?") ? absBase : absBase + "?rule=phone_200";
+              image = absBase.includes("?") ? absBase : absBase + "?rule=gallery-desktop-2x-auto";
             } else {
               console.log(`  🖼️ Subito img URL inatteso: ${imageBase.slice(0, 80)}`);
             }
@@ -1399,7 +1399,7 @@ app.get("/panel/api/img-proxy", async (req, res) => {
 
   // Whitelist flessibile: qualsiasi subdomain di vinted o subito
   const isVinted = host.includes("vinted");
-  const isSubito = host.includes("subito");
+  const isSubito = host.includes("subito") || host.includes("sbito");
   if (!isVinted && !isSubito) return res.status(400).end();
 
   try {
