@@ -339,87 +339,56 @@
         display: none;
       }
 
-      /* ── STATUS CARDS ── */
+      /* ── STATUS CARDS — Marcelo Design X rotating border ── */
       .cards {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 1.25rem;
         margin-bottom: 1.75rem;
       }
-      .card {
-        border-radius: 16px;
-        padding: 1.6rem 1.5rem 1.4rem;
+      /* Outer shell: provides the 1px padding that the rotating glow fills */
+      .card-outer {
         position: relative;
+        border-radius: 20px;
+        padding: 1px;
         overflow: hidden;
-        background: rgba(6, 10, 24, 0.75);
-        border: 1px solid rgba(255,255,255,0.07);
-        backdrop-filter: blur(24px);
-        -webkit-backdrop-filter: blur(24px);
-        transition: transform 0.28s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.28s, border-color 0.28s;
         cursor: default;
       }
-      /* Top-left corner shine */
+      /* The spinning conic-gradient that creates the animated border */
+      .card-glow {
+        position: absolute;
+        inset: -150%;
+        animation: rotateBorder 4s linear infinite;
+        will-change: transform;
+      }
+      .c1 .card-glow { background: conic-gradient(from 0deg, transparent 50%, rgba(0,212,255,0.95) 65%, rgba(96,165,250,0.85) 80%, transparent 92%); }
+      .c2 .card-glow { background: conic-gradient(from 0deg, transparent 50%, rgba(52,211,153,0.95) 65%, rgba(0,212,255,0.85) 80%, transparent 92%); }
+      .c3 .card-glow { background: conic-gradient(from 0deg, transparent 50%, rgba(168,85,247,0.95) 65%, rgba(244,114,182,0.85) 80%, transparent 92%); }
+      .c4 .card-glow { background: conic-gradient(from 0deg, transparent 50%, rgba(251,146,60,0.95) 65%, rgba(250,204,21,0.85) 80%, transparent 92%); }
+      /* Inner glass card */
+      .card {
+        position: relative;
+        background: rgba(5, 8, 20, 0.96);
+        border-radius: 19px;
+        padding: 1.6rem 1.5rem 1.4rem;
+        z-index: 1;
+        height: 100%;
+        backdrop-filter: blur(32px);
+        -webkit-backdrop-filter: blur(32px);
+        transition: transform 0.28s cubic-bezier(0.34,1.56,0.64,1);
+        overflow: hidden;
+      }
+      /* Subtle inner corner shine */
       .card::after {
         content: "";
         position: absolute;
         inset: 0;
-        background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%);
+        background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 55%);
         pointer-events: none;
-        border-radius: 16px;
+        border-radius: 19px;
       }
-      /* Neon top border accent line */
-      .card::before {
-        content: "";
-        position: absolute;
-        top: 0; left: 0; right: 0;
-        height: 2px;
-        border-radius: 2px 2px 0 0;
-        z-index: 1;
-      }
-      /* Card 1 — Stato (cyan) */
-      .cards .card:nth-child(1) { border-color: rgba(0,212,255,0.12); }
-      .cards .card:nth-child(1)::before {
-        background: linear-gradient(90deg, transparent 5%, var(--cyan) 40%, var(--blue) 60%, transparent 95%);
-        box-shadow: 0 0 16px rgba(0,212,255,0.9), 0 0 40px rgba(0,212,255,0.4);
-      }
-      .cards .card:nth-child(1):hover {
-        transform: translateY(-6px);
-        border-color: rgba(0,212,255,0.28);
-        box-shadow: 0 20px 60px rgba(0,212,255,0.1), 0 0 100px rgba(0,212,255,0.04);
-      }
-      /* Card 2 — Trovati (green) */
-      .cards .card:nth-child(2) { border-color: rgba(52,211,153,0.12); }
-      .cards .card:nth-child(2)::before {
-        background: linear-gradient(90deg, transparent 5%, var(--green) 40%, var(--cyan) 60%, transparent 95%);
-        box-shadow: 0 0 16px rgba(52,211,153,0.9), 0 0 40px rgba(52,211,153,0.4);
-      }
-      .cards .card:nth-child(2):hover {
-        transform: translateY(-6px);
-        border-color: rgba(52,211,153,0.28);
-        box-shadow: 0 20px 60px rgba(52,211,153,0.1), 0 0 100px rgba(52,211,153,0.04);
-      }
-      /* Card 3 — Keywords (purple) */
-      .cards .card:nth-child(3) { border-color: rgba(168,85,247,0.12); }
-      .cards .card:nth-child(3)::before {
-        background: linear-gradient(90deg, transparent 5%, var(--purple) 40%, var(--pink) 60%, transparent 95%);
-        box-shadow: 0 0 16px rgba(168,85,247,0.9), 0 0 40px rgba(168,85,247,0.4);
-      }
-      .cards .card:nth-child(3):hover {
-        transform: translateY(-6px);
-        border-color: rgba(168,85,247,0.28);
-        box-shadow: 0 20px 60px rgba(168,85,247,0.1), 0 0 100px rgba(168,85,247,0.04);
-      }
-      /* Card 4 — Ultimo controllo (orange) */
-      .cards .card:nth-child(4) { border-color: rgba(251,146,60,0.12); }
-      .cards .card:nth-child(4)::before {
-        background: linear-gradient(90deg, transparent 5%, var(--orange) 40%, var(--yellow) 60%, transparent 95%);
-        box-shadow: 0 0 16px rgba(251,146,60,0.9), 0 0 40px rgba(251,146,60,0.4);
-      }
-      .cards .card:nth-child(4):hover {
-        transform: translateY(-6px);
-        border-color: rgba(251,146,60,0.28);
-        box-shadow: 0 20px 60px rgba(251,146,60,0.1), 0 0 100px rgba(251,146,60,0.04);
-      }
+      .card-outer:hover .card { transform: translateY(-5px); }
+      /* Value colors per card */
       .card .lbl {
         font-size: 0.63rem;
         color: var(--text-dimmer);
@@ -444,28 +413,11 @@
         letter-spacing: 0;
         text-shadow: none;
       }
-      .cards .card:nth-child(1) .val {
-        color: var(--cyan);
-        text-shadow: 0 0 20px rgba(0,212,255,0.7), 0 0 50px rgba(0,212,255,0.35);
-      }
-      .cards .card:nth-child(2) .val {
-        color: var(--green);
-        text-shadow: 0 0 20px rgba(52,211,153,0.7), 0 0 50px rgba(52,211,153,0.35);
-      }
-      .cards .card:nth-child(3) .val {
-        color: var(--purple);
-        text-shadow: 0 0 20px rgba(168,85,247,0.7), 0 0 50px rgba(168,85,247,0.35);
-      }
-      .cards .card:nth-child(4) .val {
-        color: var(--orange);
-        text-shadow: 0 0 20px rgba(251,146,60,0.7), 0 0 50px rgba(251,146,60,0.35);
-      }
-      .cards .card:nth-child(4) .val.sm {
-        color: var(--text-dim);
-        font-size: 0.9rem;
-        font-weight: 600;
-        text-shadow: none;
-      }
+      .c1 .card .val { color: var(--cyan);   text-shadow: 0 0 20px rgba(0,212,255,0.7),   0 0 60px rgba(0,212,255,0.3); }
+      .c2 .card .val { color: var(--green);  text-shadow: 0 0 20px rgba(52,211,153,0.7),  0 0 60px rgba(52,211,153,0.3); }
+      .c3 .card .val { color: var(--purple); text-shadow: 0 0 20px rgba(168,85,247,0.7),  0 0 60px rgba(168,85,247,0.3); }
+      .c4 .card .val { color: var(--orange); text-shadow: 0 0 20px rgba(251,146,60,0.7),  0 0 60px rgba(251,146,60,0.3); }
+      .c4 .card .val.sm { color: var(--text-dim); font-size: 0.9rem; font-weight: 600; text-shadow: none; }
       .dot {
         width: 9px;
         height: 9px;
@@ -935,6 +887,36 @@
         letter-spacing: -0.01em;
       }
       .topbar-right { display: flex; align-items: center; gap: 0.6rem; }
+
+      /* ── HAMBURGER BUTTON ── */
+      .hamburger {
+        display: flex; flex-direction: column; justify-content: center; align-items: center;
+        gap: 5px; width: 36px; height: 36px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 10px; cursor: pointer;
+        padding: 0; flex-shrink: 0;
+        transition: background 0.2s, border-color 0.2s;
+        margin-right: 0.75rem;
+      }
+      .hamburger:hover { background: rgba(0,212,255,0.08); border-color: rgba(0,212,255,0.25); }
+      .hamburger span {
+        display: block; width: 18px; height: 2px;
+        background: var(--text-dim);
+        border-radius: 2px;
+        transition: transform 0.3s, opacity 0.3s, background 0.2s;
+      }
+      .hamburger:hover span { background: var(--cyan); }
+      /* X state when sidebar is collapsed */
+      .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+      .hamburger.open span:nth-child(2) { opacity: 0; }
+      .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+      /* ── COLLAPSIBLE SIDEBAR ── */
+      .sidebar { transition: transform 0.32s cubic-bezier(0.4,0,0.2,1); }
+      .sidebar.collapsed { transform: translateX(-240px); }
+      .content { transition: margin-left 0.32s cubic-bezier(0.4,0,0.2,1); }
+      .content.sb-collapsed { margin-left: 0; }
 
       /* ── TAB PANES ── */
       .tab-pane { display: none; }
@@ -1462,6 +1444,23 @@
         100% {
           transform: translate(0, 0) scale(1);
         }
+      }
+
+      /* ── FLOATING PARTICLES ── */
+      .particles { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+      .p {
+        position: absolute;
+        bottom: -10px;
+        width: 3px; height: 3px;
+        border-radius: 50%;
+        background: rgba(0,212,255,0.55);
+        animation: particleFloat linear infinite;
+      }
+      @keyframes particleFloat {
+        0%   { transform: translateY(0) translateX(0); opacity: 0; }
+        10%  { opacity: 1; }
+        90%  { opacity: 0.6; }
+        100% { transform: translateY(-100vh) translateX(30px); opacity: 0; }
       }
 
       /* ── RECENT STRIP ── */
@@ -2018,9 +2017,29 @@
     <div class="orb orb-1"></div>
     <div class="orb orb-2"></div>
     <div class="orb orb-3"></div>
+    <div class="particles">
+      <div class="p" style="left:5%;animation-duration:18s;animation-delay:0s;background:rgba(0,212,255,0.6)"></div>
+      <div class="p" style="left:12%;animation-duration:22s;animation-delay:2s;background:rgba(168,85,247,0.5)"></div>
+      <div class="p" style="left:20%;animation-duration:16s;animation-delay:4s;background:rgba(0,212,255,0.4)"></div>
+      <div class="p" style="left:28%;animation-duration:25s;animation-delay:1s;background:rgba(52,211,153,0.5)"></div>
+      <div class="p" style="left:35%;animation-duration:19s;animation-delay:7s;background:rgba(168,85,247,0.6)"></div>
+      <div class="p" style="left:42%;animation-duration:21s;animation-delay:3s;background:rgba(0,212,255,0.5)"></div>
+      <div class="p" style="left:50%;animation-duration:17s;animation-delay:9s;background:rgba(244,114,182,0.4)"></div>
+      <div class="p" style="left:57%;animation-duration:23s;animation-delay:5s;background:rgba(52,211,153,0.6)"></div>
+      <div class="p" style="left:63%;animation-duration:20s;animation-delay:11s;background:rgba(0,212,255,0.5)"></div>
+      <div class="p" style="left:70%;animation-duration:15s;animation-delay:6s;background:rgba(168,85,247,0.5)"></div>
+      <div class="p" style="left:76%;animation-duration:24s;animation-delay:8s;background:rgba(251,146,60,0.4)"></div>
+      <div class="p" style="left:82%;animation-duration:18s;animation-delay:13s;background:rgba(0,212,255,0.6)"></div>
+      <div class="p" style="left:88%;animation-duration:26s;animation-delay:2s;background:rgba(52,211,153,0.4)"></div>
+      <div class="p" style="left:93%;animation-duration:16s;animation-delay:15s;background:rgba(168,85,247,0.5)"></div>
+      <div class="p" style="left:8%;animation-duration:28s;animation-delay:10s;background:rgba(244,114,182,0.3)"></div>
+      <div class="p" style="left:45%;animation-duration:22s;animation-delay:14s;background:rgba(251,146,60,0.35)"></div>
+      <div class="p" style="left:67%;animation-duration:19s;animation-delay:16s;background:rgba(0,212,255,0.45)"></div>
+      <div class="p" style="left:90%;animation-duration:21s;animation-delay:18s;background:rgba(168,85,247,0.6)"></div>
+    </div>
     <div class="app">
       <!-- SIDEBAR -->
-      <aside class="sidebar">
+      <aside class="sidebar" id="sidebar">
         <div class="sb-logo">🎮 PokéBot</div>
         <div class="sb-section-label">Menu</div>
         <nav class="sb-nav">
@@ -2055,8 +2074,11 @@
         </div>
       </aside>
       <!-- CONTENT -->
-      <div class="content">
+      <div class="content" id="content">
         <div class="topbar">
+          <button class="hamburger" id="hamburgerBtn" onclick="toggleSidebar()" title="Toggle menu" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
           <div class="topbar-title" id="topbarTitle">🏠 Panoramica</div>
           <div class="topbar-right">
             <span class="last-refresh" id="lastRefresh"></span>
@@ -2074,24 +2096,34 @@
 
       <!-- STATUS CARDS -->
       <div class="cards">
-        <div class="card">
-          <div class="lbl">Stato</div>
-          <div class="val" id="statusVal">
-            <span class="dot dot-g"></span>Attivo
+        <div class="card-outer c1">
+          <div class="card-glow"></div>
+          <div class="card">
+            <div class="lbl">Stato</div>
+            <div class="val" id="statusVal"><span class="dot dot-g"></span>Attivo</div>
           </div>
         </div>
-        <div class="card">
-          <div class="lbl">Trovati oggi</div>
-          <div class="val" id="foundVal">—</div>
+        <div class="card-outer c2">
+          <div class="card-glow"></div>
+          <div class="card">
+            <div class="lbl">Trovati oggi</div>
+            <div class="val" id="foundVal">—</div>
+          </div>
         </div>
-        <div class="card">
-          <div class="lbl">Keyword attive</div>
-          <div class="val" id="kwCountVal">—</div>
+        <div class="card-outer c3">
+          <div class="card-glow"></div>
+          <div class="card">
+            <div class="lbl">Keyword attive</div>
+            <div class="val" id="kwCountVal">—</div>
+          </div>
         </div>
-        <div class="card">
-          <div class="lbl">Ultimo controllo</div>
-          <div class="val sm" id="lastCheckVal">—</div>
-          <div class="next-check" id="nextCheckVal"></div>
+        <div class="card-outer c4">
+          <div class="card-glow"></div>
+          <div class="card">
+            <div class="lbl">Ultimo controllo</div>
+            <div class="val sm" id="lastCheckVal">—</div>
+            <div class="next-check" id="nextCheckVal"></div>
+          </div>
         </div>
       </div>
 
@@ -4041,6 +4073,15 @@
         } else {
           showToast(d.error || "Errore", true);
         }
+      }
+
+      // ── SIDEBAR TOGGLE ───────────────────────────────────────────
+      let _sbOpen = true;
+      function toggleSidebar() {
+        _sbOpen = !_sbOpen;
+        document.getElementById("sidebar").classList.toggle("collapsed", !_sbOpen);
+        document.getElementById("content").classList.toggle("sb-collapsed", !_sbOpen);
+        document.getElementById("hamburgerBtn").classList.toggle("open", !_sbOpen);
       }
 
       // ── KEYBOARD SHORTCUTS ────────────────────────────────────────
