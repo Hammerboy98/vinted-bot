@@ -1752,6 +1752,7 @@
         display: flex;
         flex-direction: column;
         gap: 0.25rem;
+        background: linear-gradient(to top, rgba(4,7,18,0.99) 0%, rgba(4,7,18,0.92) 55%, transparent 100%);
         transition: transform 0.42s cubic-bezier(0.4,0,0.2,1), opacity 0.3s;
       }
       .item-card:hover .item-card-body {
@@ -1832,6 +1833,38 @@
       .ic-btn-delete:hover {
         background: rgba(248,113,113,0.16); color: var(--red); border-color: rgba(248,113,113,0.4);
         box-shadow: 0 0 18px rgba(248,113,113,0.22); transform: translateY(-1px);
+      }
+
+      /* ── QUICK ACTION ICONS — top-right, always accessible ── */
+      .item-card-quick-actions {
+        position: absolute;
+        top: 0.55rem; right: 0.55rem;
+        z-index: 10;
+        display: flex;
+        gap: 0.28rem;
+        opacity: 0;
+        transition: opacity 0.22s;
+      }
+      .item-card:hover .item-card-quick-actions { opacity: 1; }
+      .ic-quick-btn {
+        width: 2rem; height: 2rem;
+        border-radius: 8px;
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border: 1px solid rgba(255,255,255,0.1);
+        background: rgba(4,7,18,0.78);
+        color: var(--text-dim);
+        font-size: 0.78rem;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s, box-shadow 0.15s;
+      }
+      .ic-quick-btn:active { transform: scale(0.9); }
+      .ic-quick-btn:hover { background: rgba(4,7,18,0.96); color: var(--text); transform: scale(1.08); }
+      .ic-quick-btn.del:hover {
+        color: var(--red);
+        border-color: rgba(248,113,113,0.4);
+        box-shadow: 0 0 14px rgba(248,113,113,0.2);
       }
 
       /* ── HOVER CENTER CTA — appears when body slides away ── */
@@ -3468,32 +3501,20 @@
               return (
                 '<div class="item-card">' +
                 imgWrap +
+                '<div class="item-card-quick-actions">' +
+                '<button class="ic-quick-btn" onclick="copyLink(\'' + linkEsc + '\')" title="Copia link">⎘</button>' +
+                '<button class="ic-quick-btn del" onclick="deleteItem(\'' + linkEsc + '\')" title="Elimina articolo">🗑</button>' +
+                '</div>' +
                 '<div class="item-card-body">' +
-                '<a class="item-card-title" href="' +
-                linkEsc +
-                '" target="_blank" rel="noopener">' +
+                '<a class="item-card-title" href="' + linkEsc + '" target="_blank" rel="noopener">' +
                 titleEsc +
                 (isNew ? '<span class="new-pill">NEW</span>' : "") +
                 "</a>" +
                 '<div class="item-card-sep"></div>' +
-                '<div class="item-card-price">' +
-                it.price +
-                "</div>" +
-                '<div class="item-card-meta">' +
-                '<span class="item-card-time">' +
-                relTime(it.foundAt) +
-                "</span>" +
-                "</div>" +
+                '<div class="item-card-price">' + it.price + "</div>" +
+                '<div class="item-card-meta"><span class="item-card-time">' + relTime(it.foundAt) + "</span></div>" +
                 '<div class="item-card-actions">' +
-                '<a class="ic-btn ic-btn-open" href="' +
-                linkEsc +
-                '" target="_blank" rel="noopener">↗ Vedi</a>' +
-                '<button class="ic-btn ic-btn-copy" onclick="copyLink(\'' +
-                linkEsc +
-                "')\">⎘</button>" +
-                '<button class="ic-btn ic-btn-delete" onclick="deleteItem(\'' +
-                linkEsc +
-                '\')" title="Elimina articolo">🗑</button>' +
+                '<a class="ic-btn ic-btn-open" href="' + linkEsc + '" target="_blank" rel="noopener" style="grid-column:1/-1">↗ Vedi articolo</a>' +
                 "</div>" +
                 "</div>" +
                 '<a class="item-card-hover-cta" href="' + linkEsc + '" target="_blank" rel="noopener">↗ Vedi articolo</a>' +
