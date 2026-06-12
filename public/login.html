@@ -4,203 +4,358 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PokéBot — Accesso</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{
-  --cyan:#00d4ff;
-  --purple:#8b5cf6;
-  --bg:#050b1a;
-  --text:#eef2ff;
-  --text-dim:rgba(238,242,255,0.45);
-  --red:#ff4d6d;
+:root {
+  --bg: #020409;
+  --cyan: #00d4ff;
+  --violet: #7c3aed;
+  --purple: #a855f7;
+  --text: #f0f4ff;
+  --text-dim: rgba(240,244,255,0.5);
+  --text-dimmer: rgba(240,244,255,0.22);
+  --red: #f43f5e;
 }
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
-body{
-  min-height:100vh;
-  display:flex;align-items:center;justify-content:center;
-  background:radial-gradient(ellipse 80% 55% at 0% 0%,rgba(109,40,217,.14) 0%,transparent 55%),radial-gradient(ellipse 60% 50% at 100% 100%,rgba(6,182,212,.1) 0%,transparent 55%),radial-gradient(ellipse 45% 40% at 100% 0%,rgba(236,72,153,.06) 0%,transparent 45%),radial-gradient(ellipse 40% 55% at 0% 100%,rgba(16,185,129,.06) 0%,transparent 45%),#050b1a;
-  font-family:system-ui,-apple-system,sans-serif;
-  color:var(--text);
-  padding:1.5rem;
-  overflow:hidden;
-  position:relative;
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--text);
+  padding: 1.5rem;
+  overflow: hidden;
+  position: relative;
 }
-body::before{
-  content:'';position:fixed;inset:0;
+
+/* ── BACKGROUND ── */
+.bg-grid {
+  position: fixed;
+  inset: 0;
   background-image:
-    linear-gradient(rgba(139,92,246,.04) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(0,212,255,.04) 1px,transparent 1px);
-  background-size:52px 52px;
-  animation:gridY 30s linear infinite;
-  pointer-events:none;z-index:0;
+    linear-gradient(rgba(124,58,237,0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.055) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+  z-index: 0;
 }
-body::after{
-  content:'';position:fixed;
-  width:700px;height:700px;
-  top:50%;left:50%;transform:translate(-50%,-50%);
-  background:radial-gradient(circle,rgba(109,40,217,0.09) 0%,rgba(0,212,255,0.04) 40%,transparent 70%);
-  pointer-events:none;z-index:0;
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+  z-index: 0;
+  animation: orbFloat linear infinite;
 }
-@keyframes gridY{0%{background-position:0 0}100%{background-position:0 48px}}
+.orb-1 {
+  width: 650px; height: 650px;
+  background: radial-gradient(circle, rgba(124,58,237,0.22), transparent 70%);
+  top: -200px; left: -200px;
+  animation-duration: 26s;
+}
+.orb-2 {
+  width: 550px; height: 550px;
+  background: radial-gradient(circle, rgba(0,212,255,0.16), transparent 70%);
+  bottom: -150px; right: -150px;
+  animation-duration: 32s;
+  animation-direction: reverse;
+}
+.orb-3 {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(168,85,247,0.13), transparent 70%);
+  top: 40%; left: 40%;
+  animation-duration: 22s;
+  animation-delay: -9s;
+}
+@keyframes orbFloat {
+  0%   { transform: translate(0, 0) scale(1); }
+  25%  { transform: translate(35px,-25px) scale(1.04); }
+  50%  { transform: translate(-18px, 40px) scale(0.96); }
+  75%  { transform: translate(28px, 18px) scale(1.02); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+.scanline {
+  position: fixed;
+  top: -2px; left: 0;
+  width: 100%; height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0,212,255,0.35), transparent);
+  animation: scanDown 7s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes scanDown {
+  0%   { top: -2px; opacity: 1; }
+  90%  { opacity: 0.4; }
+  100% { top: 100vh; opacity: 0; }
+}
 
-.card{
-  position:relative;z-index:1;
-  width:100%;max-width:390px;
-  background:rgba(8,15,38,0.9);
-  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-  border:1px solid rgba(0,212,255,0.15);
-  border-radius:22px;
-  padding:2.25rem 2rem;
-  box-shadow:0 0 0 1px rgba(0,0,0,0.5),0 30px 70px rgba(0,0,0,0.65),0 0 60px rgba(0,212,255,0.04),inset 0 1px 0 rgba(255,255,255,0.06);
+/* ── ANIMATED BORDER CARD ── */
+.card-outer {
+  position: relative;
+  border-radius: 26px;
+  padding: 1px;
+  overflow: hidden;
+  z-index: 2;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 40px 120px rgba(0,0,0,0.75), 0 0 80px rgba(124,58,237,0.08);
 }
-.card::before{
-  content:'';
-  position:absolute;top:0;left:15%;right:15%;height:1px;
-  background:linear-gradient(90deg,transparent,var(--cyan),transparent);
-  opacity:.65;border-radius:1px;
+.card-glow {
+  position: absolute;
+  inset: -200%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 55%,
+    rgba(0,212,255,0.85) 65%,
+    rgba(168,85,247,0.75) 78%,
+    transparent 90%
+  );
+  animation: rotateBorder 5s linear infinite;
+  z-index: 0;
 }
-.card::after{
-  content:'';position:absolute;
-  top:-70px;right:-50px;
-  width:200px;height:200px;
-  background:radial-gradient(circle,rgba(139,92,246,0.1),transparent 70%);
-  pointer-events:none;
+@keyframes rotateBorder {
+  to { transform: rotate(360deg); }
+}
+.card {
+  position: relative;
+  z-index: 1;
+  background: rgba(4, 8, 22, 0.97);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border-radius: 25px;
+  padding: 2.5rem 2.25rem 2rem;
 }
 
-.brand{text-align:center;margin-bottom:1.75rem}
-.brand-icon{
-  font-size:3rem;display:inline-block;margin-bottom:.75rem;
-  filter:drop-shadow(0 0 18px rgba(139,92,246,0.7));
-  animation:iconPulse 3s ease-in-out infinite;
+/* ── BRAND ── */
+.brand {
+  text-align: center;
+  margin-bottom: 2rem;
 }
-@keyframes iconPulse{
-  0%,100%{filter:drop-shadow(0 0 14px rgba(139,92,246,0.6))}
-  50%{filter:drop-shadow(0 0 28px rgba(139,92,246,1))}
+.brand-icon {
+  font-size: 3rem;
+  display: inline-block;
+  margin-bottom: 0.9rem;
+  filter: drop-shadow(0 0 20px rgba(124,58,237,0.85)) drop-shadow(0 0 42px rgba(0,212,255,0.4));
+  animation: iconPulse 3s ease-in-out infinite;
 }
-.brand h1{
-  font-size:1.5rem;font-weight:800;letter-spacing:-.01em;
-  background:linear-gradient(135deg,#f0f4ff 20%,var(--cyan) 100%);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  margin-bottom:.3rem;
+@keyframes iconPulse {
+  0%,100% { filter: drop-shadow(0 0 16px rgba(124,58,237,0.7)) drop-shadow(0 0 30px rgba(0,212,255,0.3)); }
+  50%      { filter: drop-shadow(0 0 30px rgba(124,58,237,1))   drop-shadow(0 0 55px rgba(0,212,255,0.65)); }
 }
-.brand p{font-size:.71rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase}
+.brand h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #fff 20%, var(--cyan) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.3rem;
+}
+.brand-sub {
+  font-size: 0.68rem;
+  color: var(--text-dimmer);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
 
-.field-label{
-  display:flex;align-items:center;gap:.45rem;
-  font-size:.7rem;font-weight:600;color:var(--text-dim);
-  letter-spacing:.08em;text-transform:uppercase;margin-bottom:.5rem;
+/* ── FIELDS ── */
+.field-label {
+  font-size: 0.67rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.45rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
-.field-wrap{position:relative;margin-bottom:1rem}
-.field-wrap input{
-  width:100%;
-  padding:.8rem 1rem;
-  background:rgba(4,8,20,0.7);
-  border:1px solid rgba(255,255,255,0.09);
-  border-radius:11px;
-  color:var(--text);font-size:.95rem;letter-spacing:.02em;
-  transition:border-color .2s,box-shadow .2s,background .2s;
+.field-wrap {
+  position: relative;
+  margin-bottom: 1.1rem;
 }
-.field-wrap input::placeholder{color:rgba(238,242,255,0.2)}
-.field-wrap input:focus{
-  outline:none;
-  background:rgba(0,212,255,0.025);
-  border-color:rgba(0,212,255,0.5);
-  box-shadow:0 0 0 3px rgba(0,212,255,0.08),0 0 25px rgba(0,212,255,0.05);
+.field-wrap input {
+  width: 100%;
+  padding: 0.82rem 1rem;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: 'Inter', sans-serif;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
-.pw-wrap input{padding-right:3rem}
-.pw-toggle{
-  position:absolute;right:.75rem;top:50%;transform:translateY(-50%);
-  background:none;border:none;color:var(--text-dim);cursor:pointer;
-  padding:.25rem;font-size:1rem;line-height:1;width:auto;
-  transition:color .15s;
+.field-wrap input::placeholder { color: var(--text-dimmer); }
+.field-wrap input:focus {
+  outline: none;
+  background: rgba(0,212,255,0.03);
+  border-color: rgba(0,212,255,0.5);
+  box-shadow: 0 0 0 3px rgba(0,212,255,0.07), 0 0 28px rgba(0,212,255,0.06);
 }
-.pw-toggle:hover{color:var(--text)}
+.pw-wrap input { padding-right: 3rem; }
+.pw-toggle {
+  position: absolute;
+  right: 0.8rem; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none;
+  color: var(--text-dimmer);
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 1rem;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.pw-toggle:hover { color: var(--text-dim); }
 
-.btn-login{
-  width:100%;padding:.82rem;
-  background:linear-gradient(135deg,#5b21b6,#4f46e5);
-  color:#fff;border:none;border-radius:11px;
-  font-size:.95rem;font-weight:700;letter-spacing:.04em;
-  cursor:pointer;
-  box-shadow:0 4px 24px rgba(79,70,229,0.4);
-  transition:box-shadow .2s,transform .15s,opacity .15s;
-  position:relative;overflow:hidden;
-  margin-top:.25rem;
+/* ── BUTTON ── */
+.btn-login {
+  width: 100%;
+  padding: 0.88rem;
+  background: linear-gradient(135deg, var(--violet) 0%, #4f46e5 60%, #2563eb 100%);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Syne', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  box-shadow: 0 4px 30px rgba(124,58,237,0.5);
+  transition: box-shadow 0.2s, transform 0.15s, opacity 0.15s;
+  position: relative;
+  overflow: hidden;
+  margin-top: 0.5rem;
 }
-.btn-login::before{
-  content:'';position:absolute;inset:0;
-  background:linear-gradient(135deg,rgba(255,255,255,0.1),transparent 60%);
+.btn-login::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 55%);
+  pointer-events: none;
 }
-.btn-login:hover:not(:disabled){
-  box-shadow:0 6px 32px rgba(79,70,229,0.65),0 0 20px rgba(0,212,255,0.12);
-  transform:translateY(-1px);
+.btn-login .shimmer {
+  position: absolute;
+  top: 0; left: -60%;
+  width: 40%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+  transform: skewX(-15deg);
+  animation: shimmer 3.5s ease-in-out infinite;
+  pointer-events: none;
 }
-.btn-login:active:not(:disabled){transform:translateY(0)}
-.btn-login:disabled{opacity:.4;cursor:not-allowed;transform:none}
+@keyframes shimmer {
+  0%   { left: -60%; }
+  60%  { left: 130%; }
+  100% { left: 130%; }
+}
+.btn-login:hover:not(:disabled) {
+  box-shadow: 0 8px 45px rgba(124,58,237,0.7), 0 0 30px rgba(0,212,255,0.18);
+  transform: translateY(-1px);
+}
+.btn-login:active:not(:disabled) { transform: translateY(0); }
+.btn-login:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
-@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
-.error{
-  display:none;align-items:center;gap:.6rem;
-  background:rgba(255,55,95,.07);
-  border:1px solid rgba(255,55,95,.3);
-  color:#ff6b8a;
-  padding:.65rem .9rem;border-radius:10px;
-  margin-bottom:1rem;
-  font-size:.82rem;font-weight:500;
+/* ── ERROR ── */
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%,60% { transform: translateX(-5px); }
+  40%,80% { transform: translateX(5px); }
 }
-.error.show{display:flex}
-.error.shake{animation:shake .35s ease}
+.error {
+  display: none;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(244,63,94,0.07);
+  border: 1px solid rgba(244,63,94,0.25);
+  color: #fb7185;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  margin-bottom: 1.1rem;
+  font-size: 0.83rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.error.show { display: flex; }
+.error.shake { animation: shake 0.4s ease; }
 
-.footer-link{
-  text-align:center;margin-top:1.25rem;
-  font-size:.78rem;color:var(--text-dim);
+/* ── FOOTER ── */
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent);
+  margin: 1.4rem 0 1.2rem;
 }
-.footer-link a{
-  color:var(--cyan);text-decoration:none;font-weight:600;
-  transition:opacity .15s;
+.footer-link {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-dimmer);
 }
-.footer-link a:hover{opacity:.8}
+.footer-link a {
+  color: var(--cyan);
+  text-decoration: none;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+.footer-link a:hover { opacity: 0.75; }
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="brand">
-    <div class="brand-icon">🎮</div>
-    <h1>PokéBot Panel</h1>
-    <p>Sistema di controllo v3.0</p>
-  </div>
+<div class="bg-grid"></div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+<div class="scanline"></div>
 
-  <div class="error" id="err">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-    <span id="errMsg"></span>
-  </div>
+<div class="card-outer">
+  <div class="card-glow"></div>
+  <div class="card">
+    <div class="brand">
+      <div class="brand-icon">🎮</div>
+      <h1>PokéBot Panel</h1>
+      <p class="brand-sub">Sistema di controllo v3.0</p>
+    </div>
 
-  <div class="field-label">
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-    Indirizzo email
-  </div>
-  <div class="field-wrap">
-    <input type="email" id="email" placeholder="mario@esempio.it" autocomplete="email" autofocus required>
-  </div>
+    <div class="error" id="err">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+      <span id="errMsg"></span>
+    </div>
 
-  <div class="field-label">
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-    Password
-  </div>
-  <div class="field-wrap pw-wrap">
-    <input type="password" id="pw" placeholder="••••••••••••" autocomplete="current-password" required>
-    <button class="pw-toggle" type="button" onclick="togglePw()" title="Mostra/nascondi">👁</button>
-  </div>
+    <div class="field-label">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+      Indirizzo email
+    </div>
+    <div class="field-wrap">
+      <input type="email" id="email" placeholder="mario@esempio.it" autocomplete="email" autofocus required>
+    </div>
 
-  <button class="btn-login" id="btn" onclick="doLogin()">Accedi al sistema</button>
+    <div class="field-label">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+      Password
+    </div>
+    <div class="field-wrap pw-wrap">
+      <input type="password" id="pw" placeholder="••••••••••••" autocomplete="current-password" required>
+      <button class="pw-toggle" type="button" onclick="togglePw()" title="Mostra/nascondi">👁</button>
+    </div>
 
-  <div class="footer-link" style="margin-top:.75rem">
-    <a href="/panel/reset-password" style="color:var(--text-dim);font-weight:500">Hai dimenticato la password?</a>
-  </div>
-  <div class="footer-link">
-    Non hai un account? <a href="/panel/register">Registrati</a>
+    <button class="btn-login" id="btn" onclick="doLogin()">
+      <span class="shimmer"></span>
+      Accedi al sistema
+    </button>
+
+    <div class="footer-link" style="margin-top:1rem">
+      <a href="/panel/reset-password" style="color:var(--text-dimmer);font-weight:500">Password dimenticata?</a>
+    </div>
+    <div class="divider"></div>
+    <div class="footer-link">Non hai un account? <a href="/panel/register">Registrati ora</a></div>
   </div>
 </div>
+
 <script>
 function togglePw(){
   const input=document.getElementById('pw');
@@ -222,7 +377,7 @@ async function doLogin(){
   const btn=document.getElementById('btn');
   if(!email||!pw){showError('Compila tutti i campi.');return;}
   btn.disabled=true;
-  btn.textContent='Autenticazione…';
+  btn.childNodes[btn.childNodes.length-1].textContent=' Autenticazione…';
   document.getElementById('err').classList.remove('show','shake');
   try{
     const r=await fetch('/panel/login',{
@@ -234,17 +389,17 @@ async function doLogin(){
     if(data.ok&&data.token){
       localStorage.setItem('panel_token',data.token);
       localStorage.setItem('panel_user',JSON.stringify(data.user));
-      btn.textContent='✓ Accesso autorizzato';
+      btn.childNodes[btn.childNodes.length-1].textContent=' ✓ Accesso autorizzato';
       location.href='/panel/';
     }else{
       showError(data.error||'Credenziali non valide.');
       btn.disabled=false;
-      btn.textContent='Accedi al sistema';
+      btn.childNodes[btn.childNodes.length-1].textContent=' Accedi al sistema';
     }
   }catch{
     showError('Errore di connessione. Riprova.');
     btn.disabled=false;
-    btn.textContent='Accedi al sistema';
+    btn.childNodes[btn.childNodes.length-1].textContent=' Accedi al sistema';
   }
 }
 document.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
